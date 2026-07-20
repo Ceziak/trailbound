@@ -1,0 +1,10 @@
+{
+  "type": "trailbound:add_leaves",
+  "conditions": [
+    {
+      "condition": "minecraft:survives_explosion"
+    }
+  ],
+  "chance": 0.33,
+  "amount": 2
+}
