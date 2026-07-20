@@ -16,6 +16,12 @@ public final class ModItems {
     public static final DeferredItem<Item> LEAVES =
             ITEMS.register("leaves",
                     () -> new Item(new Item.Properties()));
+    public static final DeferredItem<Item> POT =
+            ITEMS.register("pot",
+                    () -> new Item(new Item.Properties()));
+    public static final DeferredItem<Item> WATER_POT =
+            ITEMS.register("pot_of_water",
+                    () -> new Item(new Item.Properties()));
 
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);

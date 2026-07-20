@@ -28,6 +28,8 @@ public final class ModCreativeModeTabs {
                             .displayItems((parameters, output) -> {
                                 // Crops and harvested ingredients
                                 output.accept(ModItems.LEAVES.get());
+                                output.accept(ModItems.POT.get());
+                                output.accept(ModItems.WATER_POT.get());
 
                             })
                             .build()
