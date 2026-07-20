@@ -1,0 +1,13 @@
+{
+  "entries": [
+    {
+      "enum": "net/minecraft/client/model/HumanoidModel$ArmPose",
+      "name": "TRAILBOUND_POT_HOLD",
+      "constructor": "(ZLnet/neoforged/neoforge/client/IArmPoseTransformer;)V",
+      "parameters": {
+        "class": "net/ceziak/trailbound/client/TrailboundClientEnumParams",
+        "field": "POT_HOLD"
+      }
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+	"parent": "minecraft:item/handheld",
+	"textures": {
+		"layer0": "trailbound:item/pot"
+	},
+	"display": {
+		"thirdperson_righthand": {
+			"rotation": [45, 0, 0],
+			"translation": [-5.75, -1, -1],
+			"scale": [0.63867, 0.63867, 0.63867]
+		},
+		"thirdperson_lefthand": {
+			"rotation": [45, 0, 0],
+			"translation": [-5.75, -1, -1],
+			"scale": [0.63867, 0.63867, 0.63867]
+		},
+		"firstperson_righthand": {
+			"rotation": [-21.28, -3.03, -1.17],
+			"translation": [-8.75, -0.5, -0.5],
+			"scale": [0.7168, 0.7168, 0.7168]
+		},
+		"firstperson_lefthand": {
+			"rotation": [-21.28, -3.03, -1.17],
+			"translation": [-8.75, -0.5, -0.5],
+			"scale": [0.7168, 0.7168, 0.7168]
+		}
+	}
+}
