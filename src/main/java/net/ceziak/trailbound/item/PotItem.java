@@ -12,7 +12,11 @@ public final class PotItem extends Item {
     }
 
     /**
-     * Prevents this item from being equipped in the offhand slot.
+     * Additional protection for systems that respect
+     * NeoForge's equipment validation.
+     *
+     * The inventory mixin below is what guarantees that
+     * normal inventory clicks are blocked before placement.
      */
     @Override
     public boolean canEquip(

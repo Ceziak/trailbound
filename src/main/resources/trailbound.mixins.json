@@ -3,6 +3,9 @@
   "minVersion": "0.8",
   "package": "net.ceziak.trailbound.mixin",
   "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "AbstractContainerMenuMixin"
+  ],
   "client": [
     "client.HumanoidModelMixin",
     "client.PlayerItemInHandLayerMixin"

@@ -6,7 +6,7 @@ import net.minecraft.world.item.ItemStack;
 public final class PotHoldingHelper {
 
     /**
-     * Every item that should use the pot-carrying system.
+     * Both Trailbound pot variants.
      */
     public static boolean isPot(ItemStack stack) {
         return stack.is(ModItems.POT.get())
@@ -14,10 +14,7 @@ public final class PotHoldingHelper {
     }
 
     /**
-     * True whenever either pot variant is in the main hand.
-     *
-     * The offhand may contain an item because that item will
-     * be hidden while the pot is being carried.
+     * Used by the arm pose and offhand render hiding.
      */
     public static boolean isHoldingPotInMainHand(
             LivingEntity entity
@@ -26,7 +23,7 @@ public final class PotHoldingHelper {
     }
 
     /**
-     * Used for blocking the F-key hand swap.
+     * Used to block the standard F-key hand swap.
      */
     public static boolean hasPotInEitherHand(
             LivingEntity entity
