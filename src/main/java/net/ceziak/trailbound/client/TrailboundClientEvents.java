@@ -11,6 +11,9 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RenderHandEvent;
 import net.neoforged.neoforge.client.extensions.common.RegisterClientExtensionsEvent;
+import net.ceziak.trailbound.block.entity.ModBlockEntities;
+import net.ceziak.trailbound.client.renderer.CookingPotBlockEntityRenderer;
+import net.neoforged.neoforge.client.event.EntityRenderersEvent;
 
 @EventBusSubscriber(
         modid = Trailbound.MOD_ID,
@@ -54,6 +57,16 @@ public final class TrailboundClientEvents {
         if (PotHoldingHelper.isHoldingPotInMainHand(player)) {
             event.setCanceled(true);
         }
+    }
+
+    @SubscribeEvent
+    public static void registerBlockEntityRenderers(
+            EntityRenderersEvent.RegisterRenderers event
+    ) {
+        event.registerBlockEntityRenderer(
+                ModBlockEntities.COOKING_POT.get(),
+                CookingPotBlockEntityRenderer::new
+        );
     }
 
     private TrailboundClientEvents() {

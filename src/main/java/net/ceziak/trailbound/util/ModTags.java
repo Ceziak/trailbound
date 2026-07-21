@@ -10,12 +10,21 @@ public final class ModTags {
 
     public static final class Blocks {
 
-        public static final TagKey<Block> NEEDLE_LEAVES = createTag("needle_leaves");
+        public static final TagKey<Block> NEEDLE_LEAVES =
+                createTag("needle_leaves");
 
-        private static TagKey<Block> createTag(String name) {
+        public static final TagKey<Block> POT_HEAT_SOURCES =
+                createTag("pot_heat_sources");
+
+        private static TagKey<Block> createTag(
+                String name
+        ) {
             return TagKey.create(
                     Registries.BLOCK,
-                    ResourceLocation.fromNamespaceAndPath(Trailbound.MOD_ID, name)
+                    ResourceLocation.fromNamespaceAndPath(
+                            Trailbound.MOD_ID,
+                            name
+                    )
             );
         }
 

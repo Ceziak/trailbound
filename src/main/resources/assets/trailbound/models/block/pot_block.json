@@ -1,7 +1,8 @@
 {
 	"texture_size": [64, 64],
 	"textures": {
-		"1": "pot_block"
+		"1": "trailbound:block/pot_block",
+		"particle": "trailbound:block/pot_block"
 	},
 	"elements": [
 		{

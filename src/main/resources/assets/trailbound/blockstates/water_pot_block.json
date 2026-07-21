@@ -1,0 +1,90 @@
+{
+  "multipart": [
+    {
+      "when": {
+        "facing": "north",
+        "lid": "false"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block"
+      }
+    },
+    {
+      "when": {
+        "facing": "east",
+        "lid": "false"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "facing": "south",
+        "lid": "false"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "facing": "west",
+        "lid": "false"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "facing": "north",
+        "lid": "true"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block_lid"
+      }
+    },
+    {
+      "when": {
+        "facing": "east",
+        "lid": "true"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block_lid",
+        "y": 90
+      }
+    },
+    {
+      "when": {
+        "facing": "south",
+        "lid": "true"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block_lid",
+        "y": 180
+      }
+    },
+    {
+      "when": {
+        "facing": "west",
+        "lid": "true"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_block_lid",
+        "y": 270
+      }
+    },
+    {
+      "when": {
+        "supported": "true"
+      },
+      "apply": {
+        "model": "trailbound:block/pot_support"
+      }
+    }
+  ]
+}

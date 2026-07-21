@@ -1,6 +1,7 @@
 package net.ceziak.trailbound.item;
 
 import net.ceziak.trailbound.Trailbound;
+import net.ceziak.trailbound.block.ModBlocks;
 import net.minecraft.world.item.Item;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredItem;
@@ -21,6 +22,7 @@ public final class ModItems {
             ITEMS.register(
                     "pot",
                     () -> new PotItem(
+                            ModBlocks.POT_BLOCK.get(),
                             new Item.Properties().stacksTo(1),
                             true
                     )
@@ -30,6 +32,7 @@ public final class ModItems {
             ITEMS.register(
                     "pot_of_water",
                     () -> new PotItem(
+                            ModBlocks.WATER_POT_BLOCK.get(),
                             new Item.Properties().stacksTo(1),
                             false
                     )
