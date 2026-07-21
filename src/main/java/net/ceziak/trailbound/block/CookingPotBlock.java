@@ -34,6 +34,8 @@ import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.core.Direction;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.ChatFormatting;
+import net.minecraft.network.chat.MutableComponent;
 
 public final class CookingPotBlock extends BaseEntityBlock {
 
@@ -57,6 +59,8 @@ public final class CookingPotBlock extends BaseEntityBlock {
 
     private static final VoxelShape LID_SHAPE =
             Block.box(2, 0, 2, 14, 9, 14);
+
+    private static final int HEAT_BAR_LENGTH = 20;
 
     public CookingPotBlock(
             BlockBehaviour.Properties properties
@@ -210,27 +214,98 @@ public final class CookingPotBlock extends BaseEntityBlock {
         Component message;
 
         if (!pot.hasWater()) {
-            message = Component.literal("The pot is empty.");
+            message = Component.literal("The pot is empty.")
+                    .withStyle(ChatFormatting.GRAY);
+
         } else if (pot.isHot()) {
-            message = Component.literal(
-                    "The water is boiling."
-            );
+            message = createHeatBar(100)
+                    .append(
+                            Component.literal(" Boiling!")
+                                    .withStyle(
+                                            ChatFormatting.RED,
+                                            ChatFormatting.BOLD
+                                    )
+                    );
+
         } else if (pot.isHeating()) {
-            message = Component.literal(
-                    "Heat: "
-                            + pot.getHeatPercentage()
-                            + "%"
+            message = createHeatBar(
+                    pot.getHeatPercentage()
             );
+
         } else {
-            message = Component.literal(
-                    "The pot contains cold water."
+            message = createHeatBar(0)
+                    .append(
+                            Component.literal(" Cold")
+                                    .withStyle(ChatFormatting.AQUA)
+                    );
+        }
+
+        player.displayClientMessage(message, true);
+    }
+
+    private static MutableComponent createHeatBar(int percentage) {
+        int clampedPercentage = Math.max(
+                0,
+                Math.min(100, percentage)
+        );
+
+        int filledSegments = Math.round(
+                clampedPercentage
+                        / 100.0F
+                        * HEAT_BAR_LENGTH
+        );
+
+        int emptySegments =
+                HEAT_BAR_LENGTH - filledSegments;
+
+        ChatFormatting heatColour =
+                getHeatColour(clampedPercentage);
+
+        MutableComponent bar = Component.empty();
+
+        bar.append(
+                Component.literal("[")
+                        .withStyle(ChatFormatting.DARK_GRAY)
+        );
+
+        if (filledSegments > 0) {
+            bar.append(
+                    Component.literal("■".repeat(filledSegments))
+                            .withStyle(heatColour)
             );
         }
 
-        /*
-         * true means action-bar message rather than chat.
-         */
-        player.displayClientMessage(message, true);
+        if (emptySegments > 0) {
+            bar.append(
+                    Component.literal("■".repeat(emptySegments))
+                            .withStyle(ChatFormatting.DARK_GRAY)
+            );
+        }
+
+        bar.append(
+                Component.literal("]")
+                        .withStyle(ChatFormatting.DARK_GRAY)
+        );
+
+        return bar;
+    }
+
+    private static ChatFormatting getHeatColour(
+            int percentage
+    ) {
+        if (percentage < 25) {
+            return ChatFormatting.AQUA;
+        }
+
+        if (percentage < 50) {
+            return ChatFormatting.YELLOW;
+        }
+
+        if (percentage < 75) {
+            return ChatFormatting.GOLD;
+        }
+
+        return ChatFormatting.RED;
     }
 
     @Override
