@@ -4,15 +4,10 @@
     {
       "rolls": 1,
       "bonus_rolls": 0,
-      "conditions": [
-        {
-          "condition": "minecraft:survives_explosion"
-        }
-      ],
       "entries": [
         {
           "type": "minecraft:item",
-          "name": "trailbound:pot_of_water"
+          "name": "trailbound:pot"
         }
       ]
     }

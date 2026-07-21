@@ -3,8 +3,8 @@
 	"credit": "Made with Blockbench",
 	"texture_size": [32, 32],
 	"textures": {
-		"0": "pot_support",
-		"particle": "pot_support"
+		"0": "trailbound:block/pot_support",
+		"particle": "trailbound:block/pot_support"
 	},
 	"elements": [
 		{

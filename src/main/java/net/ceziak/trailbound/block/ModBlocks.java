@@ -35,7 +35,7 @@ public final class ModBlocks {
 
     private static BlockBehaviour.Properties potProperties() {
         return BlockBehaviour.Properties.of()
-                .strength(1.2F)
+                .strength(0.25F, 2.0F)
                 .sound(SoundType.METAL)
                 .noOcclusion();
     }
