@@ -20,13 +20,19 @@ public final class ModItems {
     public static final DeferredItem<PotItem> POT =
             ITEMS.register(
                     "pot",
-                    () -> new PotItem(new Item.Properties())
+                    () -> new PotItem(
+                            new Item.Properties().stacksTo(1),
+                            true
+                    )
             );
 
     public static final DeferredItem<PotItem> WATER_POT =
             ITEMS.register(
                     "pot_of_water",
-                    () -> new PotItem(new Item.Properties())
+                    () -> new PotItem(
+                            new Item.Properties().stacksTo(1),
+                            false
+                    )
             );
 
     public static void register(IEventBus eventBus) {
