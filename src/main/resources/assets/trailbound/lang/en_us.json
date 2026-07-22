@@ -10,12 +10,12 @@
 
   "gui.trailbound.cooking_pot": "Cooking Pot",
   "gui.trailbound.water": "Water",
-  "gui.trailbound.servings": "%1$s / %2$s servings",
   "gui.trailbound.heat": "Heat",
 
   "gui.trailbound.status.empty": "Empty",
   "gui.trailbound.status.cold": "Cold",
   "gui.trailbound.status.heating": "Heating",
   "gui.trailbound.status.cooling": "Cooling",
-  "gui.trailbound.status.boiling": "Boiling"
+  "gui.trailbound.status.boiling": "Boiling",
+  "gui.trailbound.ingredients": "Ingredients"
 }
