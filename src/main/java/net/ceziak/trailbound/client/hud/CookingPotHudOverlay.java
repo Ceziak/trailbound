@@ -1,26 +1,27 @@
 package net.ceziak.trailbound.client.hud;
 
+import com.mojang.blaze3d.systems.RenderSystem;
+import net.ceziak.trailbound.Trailbound;
 import net.ceziak.trailbound.block.entity.CookingPotBlockEntity;
+import net.ceziak.trailbound.item.ModItems;
 import net.minecraft.client.DeltaTracker;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.NonNullList;
 import net.minecraft.network.chat.Component;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.util.Mth;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
-import net.ceziak.trailbound.item.ModItems;
-import net.minecraft.world.item.ItemStack;
-import com.mojang.blaze3d.systems.RenderSystem;
-import net.ceziak.trailbound.Trailbound;
-import net.minecraft.resources.ResourceLocation;
-import net.minecraft.core.NonNullList;
 
 public final class CookingPotHudOverlay {
 
     private static final int PANEL_WIDTH = 142;
-    private static final int PANEL_HEIGHT = 100;
+    private static final int PANEL_HEIGHT = 145;
+    private static final int PANEL_X_OFFSET = 36;
 
     private static final int BACKGROUND_RGB = 0x141719;
     private static final int INNER_BACKGROUND_RGB = 0x202426;
@@ -30,8 +31,13 @@ public final class CookingPotHudOverlay {
     private static final int TITLE_RGB = 0xF0E5CF;
     private static final int LABEL_RGB = 0xB9B1A2;
     private static final int VALUE_RGB = 0xE5DED1;
-
     private static final int EMPTY_BAR_RGB = 0x34383A;
+
+    private static final int RECIPE_READY_RGB = 0x79C267;
+    private static final int RECIPE_COOKING_RGB = 0xE7AE4A;
+    private static final int RECIPE_WAITING_RGB = 0x68A9D2;
+    private static final int RECIPE_WARNING_RGB = 0xE07852;
+    private static final int RECIPE_INACTIVE_RGB = 0x777777;
 
     private static final ResourceLocation WATER_SERVING_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(
@@ -42,312 +48,33 @@ public final class CookingPotHudOverlay {
     private static final int WATER_ICON_SIZE = 16;
     private static final int WATER_ICON_GAP = 2;
 
-    private static final int INGREDIENT_SLOT_COUNT = 4;
     private static final int INGREDIENT_SLOT_SIZE = 18;
     private static final int INGREDIENT_SLOT_GAP = 2;
 
-    /*
-     * Persistent animation values.
-     */
     private static float visibility;
     private static float displayedHeat;
+    private static float displayedCooking;
 
-    /*
-     * Last known pot information is retained while the panel
-     * fades away.
-     */
     private static BlockPos lastTargetPos;
     private static int lastWaterAmount;
     private static int lastHeatPercentage;
+    private static int lastCookingPercentage;
+
     private static boolean lastReceivingHeat;
+    private static boolean lastHasMatchingRecipe;
+    private static boolean lastLidStateCorrect;
+    private static boolean lastRequiresClosedLid;
+
+    private static ResourceLocation lastActiveRecipeId;
+
+    private static ItemStack lastResult = ItemStack.EMPTY;
+    private static ItemStack lastServingContainer = ItemStack.EMPTY;
 
     private static final NonNullList<ItemStack> lastIngredients =
             NonNullList.withSize(
-                    CookingPotBlockEntity
-                            .INGREDIENT_SLOT_COUNT,
+                    CookingPotBlockEntity.INGREDIENT_SLOT_COUNT,
                     ItemStack.EMPTY
             );
-
-    private static void drawWaterServings(
-            GuiGraphics graphics,
-            int rightX,
-            int y,
-            int waterAmount,
-            int alpha
-    ) {
-        int clampedWater = Mth.clamp(
-                waterAmount,
-                0,
-                CookingPotBlockEntity.MAX_WATER
-        );
-
-        int totalWidth =
-                CookingPotBlockEntity.MAX_WATER
-                        * WATER_ICON_SIZE
-                        + (CookingPotBlockEntity.MAX_WATER - 1)
-                        * WATER_ICON_GAP;
-
-        int startX = rightX - totalWidth;
-
-        for (int serving = 0;
-             serving < CookingPotBlockEntity.MAX_WATER;
-             serving++) {
-
-            boolean filled = serving < clampedWater;
-
-            drawWaterServingIcon(
-                    graphics,
-                    startX + serving
-                            * (WATER_ICON_SIZE + WATER_ICON_GAP),
-                    y,
-                    alpha,
-                    filled
-            );
-        }
-    }
-
-    private static void drawIngredientSlots(
-            GuiGraphics graphics,
-            int startX,
-            int y,
-            int alpha
-    ) {
-        int borderAlpha =
-                Math.round(alpha * 0.70F);
-
-        int backgroundAlpha =
-                Math.round(alpha * 0.48F);
-
-        for (int slot = 0;
-             slot < CookingPotBlockEntity
-                     .INGREDIENT_SLOT_COUNT;
-             slot++) {
-
-            int x = startX
-                    + slot
-                    * (INGREDIENT_SLOT_SIZE
-                    + INGREDIENT_SLOT_GAP);
-
-            graphics.fill(
-                    x,
-                    y,
-                    x + INGREDIENT_SLOT_SIZE,
-                    y + INGREDIENT_SLOT_SIZE,
-                    argb(borderAlpha, BORDER_RGB)
-            );
-
-            graphics.fill(
-                    x + 1,
-                    y + 1,
-                    x + INGREDIENT_SLOT_SIZE - 1,
-                    y + INGREDIENT_SLOT_SIZE - 1,
-                    argb(
-                            backgroundAlpha,
-                            EMPTY_BAR_RGB
-                    )
-            );
-
-            graphics.fill(
-                    x + 1,
-                    y + 1,
-                    x + INGREDIENT_SLOT_SIZE - 1,
-                    y + 2,
-                    argb(
-                            Math.round(alpha * 0.22F),
-                            0xFFFFFF
-                    )
-            );
-
-            ItemStack ingredient =
-                    lastIngredients.get(slot);
-
-            if (!ingredient.isEmpty()) {
-                drawIngredientItem(
-                        graphics,
-                        ingredient,
-                        x + 1,
-                        y + 1,
-                        alpha
-                );
-            }
-        }
-    }
-
-    private static void drawIngredientItem(
-            GuiGraphics graphics,
-            ItemStack stack,
-            int x,
-            int y,
-            int alpha
-    ) {
-        if (alpha < 24) {
-            return;
-        }
-
-        float itemAlpha = Mth.clamp(
-                alpha / 255.0F,
-                0.0F,
-                1.0F
-        );
-
-        graphics.flush();
-
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(
-                1.0F,
-                1.0F,
-                1.0F,
-                itemAlpha
-        );
-
-        try {
-            graphics.renderItem(
-                    stack,
-                    x,
-                    y
-            );
-
-            graphics.flush();
-        } finally {
-            RenderSystem.setShaderColor(
-                    1.0F,
-                    1.0F,
-                    1.0F,
-                    1.0F
-            );
-        }
-    }
-
-    private static void drawWaterServingIcon(
-            GuiGraphics graphics,
-            int x,
-            int y,
-            int alpha,
-            boolean filled
-    ) {
-        /*
-         * Use the same cutoff as the pot icon so all HUD textures
-         * disappear at the same moment.
-         */
-        if (alpha < 24) {
-            return;
-        }
-
-        float servingOpacity = filled ? 1.0F : 0.16F;
-
-        float finalAlpha = Mth.clamp(
-                alpha / 255.0F * servingOpacity,
-                0.0F,
-                1.0F
-        );
-
-        /*
-         * Flush around the shader change so its opacity only affects
-         * this particular cup icon.
-         */
-        graphics.flush();
-
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(
-                1.0F,
-                1.0F,
-                1.0F,
-                finalAlpha
-        );
-
-        try {
-            graphics.blit(
-                    WATER_SERVING_TEXTURE,
-                    x,
-                    y,
-                    0.0F,
-                    0.0F,
-                    WATER_ICON_SIZE,
-                    WATER_ICON_SIZE,
-                    WATER_ICON_SIZE,
-                    WATER_ICON_SIZE
-            );
-
-            graphics.flush();
-        } finally {
-            RenderSystem.setShaderColor(
-                    1.0F,
-                    1.0F,
-                    1.0F,
-                    1.0F
-            );
-        }
-    }
-
-    private static void drawPotItemIcon(
-            GuiGraphics graphics,
-            int x,
-            int y,
-            boolean hasWater,
-            int alpha
-    ) {
-        /*
-         * Stop drawing the icon during the final almost-invisible
-         * part of the fade. This prevents stray model pixels.
-         */
-        if (alpha < 24) {
-            return;
-        }
-
-        ItemStack iconStack = new ItemStack(
-                hasWater
-                        ? ModItems.WATER_POT.get()
-                        : ModItems.POT.get()
-        );
-
-        float iconAlpha = Mth.clamp(
-                alpha / 255.0F,
-                0.0F,
-                1.0F
-        );
-
-        /*
-         * Flush before changing shader colour so previously queued
-         * GUI elements are not affected.
-         */
-        graphics.flush();
-
-        RenderSystem.enableBlend();
-        RenderSystem.defaultBlendFunc();
-        RenderSystem.setShaderColor(
-                1.0F,
-                1.0F,
-                1.0F,
-                iconAlpha
-        );
-
-        try {
-            graphics.renderItem(
-                    iconStack,
-                    x,
-                    y
-            );
-
-            /*
-             * Force the item to render while our temporary alpha
-             * value is still active.
-             */
-            graphics.flush();
-        } finally {
-            /*
-             * Always restore full opacity or the rest of Minecraft's
-             * GUI could also become translucent.
-             */
-            RenderSystem.setShaderColor(
-                    1.0F,
-                    1.0F,
-                    1.0F,
-                    1.0F
-            );
-        }
-    }
 
     public static void render(
             GuiGraphics graphics,
@@ -372,54 +99,9 @@ public final class CookingPotHudOverlay {
         );
 
         if (lookedAtPot != null) {
-            BlockPos currentPos =
-                    lookedAtPot.getBlockPos();
-
-            /*
-             * Immediately match the new pot when moving the
-             * crosshair from one pot to another.
-             */
-            if (lastTargetPos == null
-                    || !lastTargetPos.equals(currentPos)) {
-                displayedHeat =
-                        lookedAtPot.getHeatPercentage();
-            }
-
-            lastTargetPos = currentPos.immutable();
-            lastWaterAmount =
-                    lookedAtPot.getWaterAmount();
-            lastHeatPercentage =
-                    lookedAtPot.getHeatPercentage();
-            lastReceivingHeat =
-                    lookedAtPot.isReceivingHeat();
-
-            /*
-             * Smoothly animate between server updates.
-             */
-            displayedHeat = approach(
-                    displayedHeat,
-                    lastHeatPercentage,
-                    0.18F
-            );
-
-            for (int slot = 0;
-                 slot < CookingPotBlockEntity
-                         .INGREDIENT_SLOT_COUNT;
-                 slot++) {
-
-                lastIngredients.set(
-                        slot,
-                        lookedAtPot
-                                .getIngredient(slot)
-                                .copy()
-                );
-            }
+            updateCachedPot(lookedAtPot);
         }
 
-        /*
-         * End the fade before very low alpha values cause separate GUI
-         * components to become visible at different strengths.
-         */
         if (visibility < 0.08F) {
             if (!shouldShow) {
                 lastTargetPos = null;
@@ -428,14 +110,6 @@ public final class CookingPotHudOverlay {
             return;
         }
 
-        /*
-         * Smoothstep easing:
-         * slower near full visibility, quicker and cleaner near zero.
-         */
-        /*
-         * Smoothstep easing:
-         * slower near full visibility, quicker and cleaner near zero.
-         */
         float easedVisibility =
                 visibility
                         * visibility
@@ -454,6 +128,55 @@ public final class CookingPotHudOverlay {
         );
     }
 
+    private static void updateCachedPot(
+            CookingPotBlockEntity pot
+    ) {
+        BlockPos currentPos = pot.getBlockPos();
+
+        if (lastTargetPos == null
+                || !lastTargetPos.equals(currentPos)) {
+            displayedHeat = pot.getHeatPercentage();
+            displayedCooking = pot.getCookingPercentage();
+        }
+
+        lastTargetPos = currentPos.immutable();
+
+        lastWaterAmount = pot.getWaterAmount();
+        lastHeatPercentage = pot.getHeatPercentage();
+        lastCookingPercentage = pot.getCookingPercentage();
+
+        lastReceivingHeat = pot.isReceivingHeat();
+        lastHasMatchingRecipe = pot.hasMatchingRecipe();
+        lastLidStateCorrect = pot.isLidStateCorrect();
+        lastRequiresClosedLid = pot.activeRecipeRequiresClosedLid();
+
+        lastActiveRecipeId = pot.getActiveRecipeId();
+        lastResult = pot.getResult();
+        lastServingContainer = pot.getRequiredServingContainer();
+
+        displayedHeat = approach(
+                displayedHeat,
+                lastHeatPercentage,
+                0.18F
+        );
+
+        displayedCooking = approach(
+                displayedCooking,
+                lastCookingPercentage,
+                0.18F
+        );
+
+        for (int slot = 0;
+             slot < CookingPotBlockEntity.INGREDIENT_SLOT_COUNT;
+             slot++) {
+
+            lastIngredients.set(
+                    slot,
+                    pot.getIngredient(slot).copy()
+            );
+        }
+    }
+
     private static CookingPotBlockEntity findLookedAtPot(
             Minecraft minecraft
     ) {
@@ -467,8 +190,7 @@ public final class CookingPotHudOverlay {
             return null;
         }
 
-        if (hitResult.getType()
-                != HitResult.Type.BLOCK) {
+        if (hitResult.getType() != HitResult.Type.BLOCK) {
             return null;
         }
 
@@ -494,20 +216,21 @@ public final class CookingPotHudOverlay {
         int centreX = screenWidth / 2;
         int centreY = screenHeight / 2;
 
-        int panelX = centreX + 18;
+        int panelX = centreX + PANEL_X_OFFSET;
 
-        /*
-         * Move the panel to the left if the right side does
-         * not have enough space.
-         */
         if (panelX + PANEL_WIDTH > screenWidth - 4) {
-            panelX = centreX - PANEL_WIDTH - 18;
+            panelX = centreX
+                    - PANEL_WIDTH
+                    - PANEL_X_OFFSET;
         }
 
         int panelY = Mth.clamp(
                 centreY - PANEL_HEIGHT / 2,
                 4,
-                Math.max(4, screenHeight - PANEL_HEIGHT - 4)
+                Math.max(
+                        4,
+                        screenHeight - PANEL_HEIGHT - 4
+                )
         );
 
         boolean panelOnRight = panelX > centreX;
@@ -534,6 +257,10 @@ public final class CookingPotHudOverlay {
                 ? getHeatColour(displayedHeat)
                 : EMPTY_BAR_RGB;
 
+        int accentColour = !lastResult.isEmpty()
+                ? RECIPE_READY_RGB
+                : heatColour;
+
         drawPotItemIcon(
                 graphics,
                 panelX + 8,
@@ -541,8 +268,6 @@ public final class CookingPotHudOverlay {
                 hasWater,
                 alpha
         );
-
-
 
         Component title = Component.translatable(
                 "gui.trailbound.cooking_pot"
@@ -564,16 +289,10 @@ public final class CookingPotHudOverlay {
                 status,
                 panelX + 30,
                 panelY + 18,
-                argb(
-                        alpha,
-                        getStatusColour()
-                ),
+                argb(alpha, getStatusColour()),
                 false
         );
 
-        /*
-         * Accent line below the header.
-         */
         graphics.fill(
                 panelX + 1,
                 panelY + 28,
@@ -581,10 +300,53 @@ public final class CookingPotHudOverlay {
                 panelY + 29,
                 argb(
                         Math.round(alpha * 0.75F),
-                        heatColour
+                        accentColour
                 )
         );
 
+        drawWaterSection(
+                graphics,
+                font,
+                panelX,
+                panelY,
+                alpha
+        );
+
+        drawIngredientSection(
+                graphics,
+                font,
+                panelX,
+                panelY,
+                alpha
+        );
+
+        drawHeatSection(
+                graphics,
+                minecraft,
+                font,
+                panelX,
+                panelY,
+                alpha,
+                hasWater,
+                heatColour
+        );
+
+        drawRecipeSection(
+                graphics,
+                font,
+                panelX,
+                panelY,
+                alpha
+        );
+    }
+
+    private static void drawWaterSection(
+            GuiGraphics graphics,
+            Font font,
+            int panelX,
+            int panelY,
+            int alpha
+    ) {
         Component waterLabel = Component.translatable(
                 "gui.trailbound.water"
         );
@@ -598,9 +360,6 @@ public final class CookingPotHudOverlay {
                 false
         );
 
-        /*
-         * Four cup icons representing the four servings.
-         */
         drawWaterServings(
                 graphics,
                 panelX + PANEL_WIDTH - 8,
@@ -608,7 +367,15 @@ public final class CookingPotHudOverlay {
                 lastWaterAmount,
                 alpha
         );
+    }
 
+    private static void drawIngredientSection(
+            GuiGraphics graphics,
+            Font font,
+            int panelX,
+            int panelY,
+            int alpha
+    ) {
         Component ingredientsLabel = Component.translatable(
                 "gui.trailbound.ingredients"
         );
@@ -628,7 +395,18 @@ public final class CookingPotHudOverlay {
                 panelY + 59,
                 alpha
         );
+    }
 
+    private static void drawHeatSection(
+            GuiGraphics graphics,
+            Minecraft minecraft,
+            Font font,
+            int panelX,
+            int panelY,
+            int alpha,
+            boolean hasWater,
+            int heatColour
+    ) {
         Component heatLabel = Component.translatable(
                 "gui.trailbound.heat"
         );
@@ -645,6 +423,7 @@ public final class CookingPotHudOverlay {
         if (minecraft.player != null
                 && minecraft.player.isShiftKeyDown()
                 && hasWater) {
+
             Component percentage = Component.literal(
                     Math.round(displayedHeat) + "%"
             );
@@ -661,15 +440,139 @@ public final class CookingPotHudOverlay {
             );
         }
 
-        drawHeatBar(
+        drawProgressBar(
                 graphics,
                 panelX + 8,
                 panelY + 90,
                 PANEL_WIDTH - 16,
                 7,
                 alpha,
-                hasWater,
+                hasWater
+                        ? Mth.clamp(
+                        displayedHeat / 100.0F,
+                        0.0F,
+                        1.0F
+                )
+                        : 0.0F,
                 heatColour
+        );
+    }
+
+    private static void drawRecipeSection(
+            GuiGraphics graphics,
+            Font font,
+            int panelX,
+            int panelY,
+            int alpha
+    ) {
+        graphics.fill(
+                panelX + 1,
+                panelY + 104,
+                panelX + PANEL_WIDTH - 1,
+                panelY + 105,
+                argb(
+                        Math.round(alpha * 0.55F),
+                        SEPARATOR_RGB
+                )
+        );
+
+        Component recipeLabel = Component.translatable(
+                "gui.trailbound.recipe"
+        );
+
+        Component recipeStatus = getRecipeStatusComponent();
+
+        graphics.drawString(
+                font,
+                recipeLabel,
+                panelX + 8,
+                panelY + 109,
+                argb(alpha, LABEL_RGB),
+                false
+        );
+
+        int statusX = panelX
+                + PANEL_WIDTH
+                - 8
+                - font.width(recipeStatus);
+
+        graphics.drawString(
+                font,
+                recipeStatus,
+                statusX,
+                panelY + 109,
+                argb(alpha, getRecipeStatusColour()),
+                false
+        );
+
+        if (!lastResult.isEmpty()
+                && !lastServingContainer.isEmpty()) {
+            drawFadingItem(
+                    graphics,
+                    lastServingContainer,
+                    statusX - 18,
+                    panelY + 105,
+                    alpha
+            );
+        }
+
+        Component recipeName = getRecipeNameComponent();
+
+        int nameX = panelX + 8;
+
+        if (!lastResult.isEmpty()) {
+            drawFadingItem(
+                    graphics,
+                    lastResult,
+                    panelX + 8,
+                    panelY + 117,
+                    alpha
+            );
+
+            nameX = panelX + 28;
+        }
+
+        int availableWidth =
+                panelX + PANEL_WIDTH - 8 - nameX;
+
+        String displayedName = trimWithEllipsis(
+                font,
+                recipeName.getString(),
+                availableWidth
+        );
+
+        graphics.drawString(
+                font,
+                displayedName,
+                nameX,
+                panelY + 121,
+                argb(alpha, VALUE_RGB),
+                false
+        );
+
+        float progress;
+
+        if (!lastResult.isEmpty()) {
+            progress = 1.0F;
+        } else if (lastHasMatchingRecipe) {
+            progress = Mth.clamp(
+                    displayedCooking / 100.0F,
+                    0.0F,
+                    1.0F
+            );
+        } else {
+            progress = 0.0F;
+        }
+
+        drawProgressBar(
+                graphics,
+                panelX + 8,
+                panelY + 134,
+                PANEL_WIDTH - 16,
+                7,
+                alpha,
+                progress,
+                getCookingBarColour()
         );
     }
 
@@ -679,19 +582,11 @@ public final class CookingPotHudOverlay {
             int y,
             int alpha
     ) {
-        /*
-         * Separate opacity levels:
-         *
-         * border = fairly visible
-         * background = more translucent
-         * header = slightly more solid than the main body
-         */
         int borderAlpha = Math.round(alpha * 0.75F);
         int backgroundAlpha = Math.round(alpha * 0.58F);
         int headerAlpha = Math.round(alpha * 0.68F);
         int shadowAlpha = Math.round(alpha * 0.28F);
 
-        // Soft blocky shadow.
         graphics.fill(
                 x + 3,
                 y + 3,
@@ -700,7 +595,6 @@ public final class CookingPotHudOverlay {
                 argb(shadowAlpha, 0x000000)
         );
 
-        // Outer border.
         graphics.fill(
                 x,
                 y,
@@ -709,7 +603,6 @@ public final class CookingPotHudOverlay {
                 argb(borderAlpha, BORDER_RGB)
         );
 
-        // Main translucent body.
         graphics.fill(
                 x + 1,
                 y + 1,
@@ -718,7 +611,6 @@ public final class CookingPotHudOverlay {
                 argb(backgroundAlpha, BACKGROUND_RGB)
         );
 
-        // Slightly clearer header section.
         graphics.fill(
                 x + 2,
                 y + 2,
@@ -776,19 +668,229 @@ public final class CookingPotHudOverlay {
         }
     }
 
-    private static void drawHeatBar(
+    private static void drawWaterServings(
+            GuiGraphics graphics,
+            int rightX,
+            int y,
+            int waterAmount,
+            int alpha
+    ) {
+        int clampedWater = Mth.clamp(
+                waterAmount,
+                0,
+                CookingPotBlockEntity.MAX_WATER
+        );
+
+        int totalWidth =
+                CookingPotBlockEntity.MAX_WATER
+                        * WATER_ICON_SIZE
+                        + (CookingPotBlockEntity.MAX_WATER - 1)
+                        * WATER_ICON_GAP;
+
+        int startX = rightX - totalWidth;
+
+        for (int serving = 0;
+             serving < CookingPotBlockEntity.MAX_WATER;
+             serving++) {
+
+            boolean filled = serving < clampedWater;
+
+            drawWaterServingIcon(
+                    graphics,
+                    startX + serving
+                            * (WATER_ICON_SIZE + WATER_ICON_GAP),
+                    y,
+                    alpha,
+                    filled
+            );
+        }
+    }
+
+    private static void drawWaterServingIcon(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int alpha,
+            boolean filled
+    ) {
+        if (alpha < 24) {
+            return;
+        }
+
+        float servingOpacity = filled ? 1.0F : 0.16F;
+
+        float finalAlpha = Mth.clamp(
+                alpha / 255.0F * servingOpacity,
+                0.0F,
+                1.0F
+        );
+
+        graphics.flush();
+
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(
+                1.0F,
+                1.0F,
+                1.0F,
+                finalAlpha
+        );
+
+        try {
+            graphics.blit(
+                    WATER_SERVING_TEXTURE,
+                    x,
+                    y,
+                    0.0F,
+                    0.0F,
+                    WATER_ICON_SIZE,
+                    WATER_ICON_SIZE,
+                    WATER_ICON_SIZE,
+                    WATER_ICON_SIZE
+            );
+
+            graphics.flush();
+        } finally {
+            RenderSystem.setShaderColor(
+                    1.0F,
+                    1.0F,
+                    1.0F,
+                    1.0F
+            );
+        }
+    }
+
+    private static void drawIngredientSlots(
+            GuiGraphics graphics,
+            int startX,
+            int y,
+            int alpha
+    ) {
+        int borderAlpha = Math.round(alpha * 0.70F);
+        int backgroundAlpha = Math.round(alpha * 0.48F);
+
+        for (int slot = 0;
+             slot < CookingPotBlockEntity.INGREDIENT_SLOT_COUNT;
+             slot++) {
+
+            int x = startX
+                    + slot
+                    * (INGREDIENT_SLOT_SIZE + INGREDIENT_SLOT_GAP);
+
+            graphics.fill(
+                    x,
+                    y,
+                    x + INGREDIENT_SLOT_SIZE,
+                    y + INGREDIENT_SLOT_SIZE,
+                    argb(borderAlpha, BORDER_RGB)
+            );
+
+            graphics.fill(
+                    x + 1,
+                    y + 1,
+                    x + INGREDIENT_SLOT_SIZE - 1,
+                    y + INGREDIENT_SLOT_SIZE - 1,
+                    argb(backgroundAlpha, EMPTY_BAR_RGB)
+            );
+
+            graphics.fill(
+                    x + 1,
+                    y + 1,
+                    x + INGREDIENT_SLOT_SIZE - 1,
+                    y + 2,
+                    argb(
+                            Math.round(alpha * 0.22F),
+                            0xFFFFFF
+                    )
+            );
+
+            ItemStack ingredient = lastIngredients.get(slot);
+
+            if (!ingredient.isEmpty()) {
+                drawFadingItem(
+                        graphics,
+                        ingredient,
+                        x + 1,
+                        y + 1,
+                        alpha
+                );
+            }
+        }
+    }
+
+    private static void drawPotItemIcon(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            boolean hasWater,
+            int alpha
+    ) {
+        ItemStack iconStack = new ItemStack(
+                hasWater
+                        ? ModItems.WATER_POT.get()
+                        : ModItems.POT.get()
+        );
+
+        drawFadingItem(
+                graphics,
+                iconStack,
+                x,
+                y,
+                alpha
+        );
+    }
+
+    private static void drawFadingItem(
+            GuiGraphics graphics,
+            ItemStack stack,
+            int x,
+            int y,
+            int alpha
+    ) {
+        if (stack.isEmpty() || alpha < 24) {
+            return;
+        }
+
+        float itemAlpha = Mth.clamp(
+                alpha / 255.0F,
+                0.0F,
+                1.0F
+        );
+
+        graphics.flush();
+
+        RenderSystem.enableBlend();
+        RenderSystem.defaultBlendFunc();
+        RenderSystem.setShaderColor(
+                1.0F,
+                1.0F,
+                1.0F,
+                itemAlpha
+        );
+
+        try {
+            graphics.renderItem(stack, x, y);
+            graphics.flush();
+        } finally {
+            RenderSystem.setShaderColor(
+                    1.0F,
+                    1.0F,
+                    1.0F,
+                    1.0F
+            );
+        }
+    }
+
+    private static void drawProgressBar(
             GuiGraphics graphics,
             int x,
             int y,
             int width,
             int height,
             int alpha,
-            boolean hasWater,
-            int heatColour
+            float progress,
+            int colour
     ) {
-        /*
-         * Outer border.
-         */
         graphics.fill(
                 x,
                 y,
@@ -797,9 +899,6 @@ public final class CookingPotHudOverlay {
                 argb(alpha, BORDER_RGB)
         );
 
-        /*
-         * Empty inner track.
-         */
         graphics.fill(
                 x + 1,
                 y + 1,
@@ -808,17 +907,13 @@ public final class CookingPotHudOverlay {
                 argb(alpha, EMPTY_BAR_RGB)
         );
 
-        if (!hasWater) {
-            return;
-        }
-
         int innerWidth = width - 2;
 
         int filledWidth = Mth.clamp(
                 Math.round(
                         innerWidth
                                 * Mth.clamp(
-                                displayedHeat / 100.0F,
+                                progress,
                                 0.0F,
                                 1.0F
                         )
@@ -836,12 +931,9 @@ public final class CookingPotHudOverlay {
                 y + 1,
                 x + 1 + filledWidth,
                 y + height - 1,
-                argb(alpha, heatColour)
+                argb(alpha, colour)
         );
 
-        /*
-         * Thin highlight across the filled section.
-         */
         graphics.fill(
                 x + 1,
                 y + 1,
@@ -849,12 +941,18 @@ public final class CookingPotHudOverlay {
                 y + 2,
                 argb(
                         Math.round(alpha * 0.70F),
-                        brighten(heatColour, 28)
+                        brighten(colour, 28)
                 )
         );
     }
 
     private static Component getStatusComponent() {
+        if (!lastResult.isEmpty()) {
+            return Component.translatable(
+                    "gui.trailbound.recipe.ready"
+            );
+        }
+
         if (lastWaterAmount <= 0) {
             return Component.translatable(
                     "gui.trailbound.status.empty"
@@ -881,6 +979,10 @@ public final class CookingPotHudOverlay {
     }
 
     private static int getStatusColour() {
+        if (!lastResult.isEmpty()) {
+            return RECIPE_READY_RGB;
+        }
+
         if (lastWaterAmount <= 0) {
             return 0x8B8B8B;
         }
@@ -898,12 +1000,194 @@ public final class CookingPotHudOverlay {
         return 0x72B8E4;
     }
 
-    /**
-     * Blue -> amber -> orange-red.
-     */
-    private static int getHeatColour(
-            float percentage
+    private static Component getRecipeStatusComponent() {
+        if (!lastResult.isEmpty()) {
+            if (!lastServingContainer.isEmpty()) {
+                return Component.translatable(
+                        "gui.trailbound.recipe.use_container",
+                        lastServingContainer.getHoverName()
+                );
+            }
+
+            return Component.translatable(
+                    "gui.trailbound.recipe.ready"
+            );
+        }
+
+        if (!lastHasMatchingRecipe) {
+            return Component.translatable(
+                    hasCachedIngredients()
+                            ? "gui.trailbound.recipe.invalid"
+                            : "gui.trailbound.recipe.add_ingredients"
+            );
+        }
+
+        if (!lastLidStateCorrect) {
+            return Component.translatable(
+                    lastRequiresClosedLid
+                            ? "gui.trailbound.recipe.close_lid"
+                            : "gui.trailbound.recipe.open_lid"
+            );
+        }
+
+        if (lastHeatPercentage < 100) {
+            return Component.translatable(
+                    "gui.trailbound.recipe.waiting_for_heat"
+            );
+        }
+
+        return Component.translatable(
+                "gui.trailbound.recipe.cooking"
+        );
+    }
+
+    private static int getRecipeStatusColour() {
+        if (!lastResult.isEmpty()) {
+            return RECIPE_READY_RGB;
+        }
+
+        if (!lastHasMatchingRecipe) {
+            return hasCachedIngredients()
+                    ? RECIPE_WARNING_RGB
+                    : RECIPE_INACTIVE_RGB;
+        }
+
+        if (!lastLidStateCorrect) {
+            return RECIPE_WARNING_RGB;
+        }
+
+        if (lastHeatPercentage < 100) {
+            return RECIPE_WAITING_RGB;
+        }
+
+        return RECIPE_COOKING_RGB;
+    }
+
+    private static int getCookingBarColour() {
+        if (!lastResult.isEmpty()) {
+            return RECIPE_READY_RGB;
+        }
+
+        if (!lastHasMatchingRecipe) {
+            return RECIPE_INACTIVE_RGB;
+        }
+
+        if (!lastLidStateCorrect) {
+            return RECIPE_WARNING_RGB;
+        }
+
+        if (lastHeatPercentage < 100) {
+            return RECIPE_WAITING_RGB;
+        }
+
+        return RECIPE_COOKING_RGB;
+    }
+
+    private static Component getRecipeNameComponent() {
+        if (!lastResult.isEmpty()) {
+            return lastResult.getHoverName();
+        }
+
+        if (lastActiveRecipeId != null) {
+            String translationKey =
+                    "recipe."
+                            + lastActiveRecipeId.getNamespace()
+                            + "."
+                            + lastActiveRecipeId
+                            .getPath()
+                            .replace('/', '.');
+
+            String fallback = humanizeRecipePath(
+                    lastActiveRecipeId.getPath()
+            );
+
+            return Component.translatableWithFallback(
+                    translationKey,
+                    fallback
+            );
+        }
+
+        if (hasCachedIngredients()) {
+            return Component.translatable(
+                    "gui.trailbound.recipe.unknown"
+            );
+        }
+
+        return Component.translatable(
+                "gui.trailbound.recipe.none"
+        );
+    }
+
+    private static boolean hasCachedIngredients() {
+        for (ItemStack ingredient : lastIngredients) {
+            if (!ingredient.isEmpty()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static String humanizeRecipePath(String path) {
+        int finalSlash = path.lastIndexOf('/');
+
+        String finalPart = finalSlash >= 0
+                ? path.substring(finalSlash + 1)
+                : path;
+
+        String cleaned = finalPart
+                .replace('_', ' ');
+
+        StringBuilder result = new StringBuilder();
+        boolean capitalizeNext = true;
+
+        for (int index = 0;
+             index < cleaned.length();
+             index++) {
+
+            char character = cleaned.charAt(index);
+
+            if (Character.isWhitespace(character)) {
+                result.append(character);
+                capitalizeNext = true;
+                continue;
+            }
+
+            result.append(
+                    capitalizeNext
+                            ? Character.toUpperCase(character)
+                            : character
+            );
+
+            capitalizeNext = false;
+        }
+
+        return result.toString();
+    }
+
+    private static String trimWithEllipsis(
+            Font font,
+            String text,
+            int width
     ) {
+        String trimmed = font.plainSubstrByWidth(
+                text,
+                Math.max(0, width)
+        );
+
+        if (trimmed.equals(text)) {
+            return trimmed;
+        }
+
+        int ellipsisWidth = font.width("...");
+
+        return font.plainSubstrByWidth(
+                text,
+                Math.max(0, width - ellipsisWidth)
+        ) + "...";
+    }
+
+    private static int getHeatColour(float percentage) {
         float clamped = Mth.clamp(
                 percentage,
                 0.0F,

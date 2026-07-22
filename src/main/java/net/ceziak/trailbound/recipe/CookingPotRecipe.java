@@ -13,13 +13,13 @@ import net.minecraft.world.level.Level;
 import java.util.ArrayList;
 import java.util.List;
 
-public final class CookingPotRecipe
-        implements Recipe<CookingPotRecipeInput> {
+public final class CookingPotRecipe implements Recipe<CookingPotRecipeInput> {
 
     private final List<Ingredient> ingredients;
     private final int requiredWater;
     private final int cookingTime;
     private final boolean requiresClosedLid;
+    private final ItemStack servingContainer;
     private final ItemStack result;
 
     public CookingPotRecipe(
@@ -27,6 +27,7 @@ public final class CookingPotRecipe
             int requiredWater,
             int cookingTime,
             boolean requiresClosedLid,
+            ItemStack servingContainer,
             ItemStack result
     ) {
         if (ingredients.isEmpty()) {
@@ -35,8 +36,7 @@ public final class CookingPotRecipe
             );
         }
 
-        if (ingredients.size()
-                > CookingPotBlockEntity.INGREDIENT_SLOT_COUNT) {
+        if (ingredients.size() > CookingPotBlockEntity.INGREDIENT_SLOT_COUNT) {
             throw new IllegalArgumentException(
                     "A cooking-pot recipe cannot contain more than "
                             + CookingPotBlockEntity.INGREDIENT_SLOT_COUNT
@@ -44,9 +44,7 @@ public final class CookingPotRecipe
             );
         }
 
-        if (requiredWater < 1
-                || requiredWater
-                > CookingPotBlockEntity.MAX_WATER) {
+        if (requiredWater < 1 || requiredWater > CookingPotBlockEntity.MAX_WATER) {
             throw new IllegalArgumentException(
                     "Required water must be between 1 and "
                             + CookingPotBlockEntity.MAX_WATER
@@ -69,28 +67,25 @@ public final class CookingPotRecipe
         this.requiredWater = requiredWater;
         this.cookingTime = cookingTime;
         this.requiresClosedLid = requiresClosedLid;
+        this.servingContainer = servingContainer.isEmpty()
+                ? ItemStack.EMPTY
+                : servingContainer.copyWithCount(1);
         this.result = result.copy();
     }
 
     @Override
-    public boolean matches(
-            CookingPotRecipeInput input,
-            Level level
-    ) {
+    public boolean matches(CookingPotRecipeInput input, Level level) {
         /*
-         * Water currently has to match exactly.
+         * The pot must contain at least the required amount.
+         * Extra water is allowed and remains after cooking.
          */
-        if (input.waterAmount() != requiredWater) {
+        if (input.waterAmount() < requiredWater) {
             return false;
         }
 
-        List<ItemStack> presentItems =
-                new ArrayList<>();
+        List<ItemStack> presentItems = new ArrayList<>();
 
-        for (int slot = 0;
-             slot < input.size();
-             slot++) {
-
+        for (int slot = 0; slot < input.size(); slot++) {
             ItemStack stack = input.getItem(slot);
 
             if (!stack.isEmpty()) {
@@ -98,18 +93,10 @@ public final class CookingPotRecipe
             }
         }
 
-        /*
-         * Prevent recipes from matching when the pot contains
-         * additional ingredients not listed by the recipe.
-         */
         if (presentItems.size() != ingredients.size()) {
             return false;
         }
 
-        /*
-         * Match shapelessly and correctly handle duplicates
-         * and ingredients whose possible items overlap.
-         */
         return matchIngredient(
                 0,
                 presentItems,
@@ -126,20 +113,14 @@ public final class CookingPotRecipe
             return true;
         }
 
-        Ingredient ingredient =
-                ingredients.get(ingredientIndex);
+        Ingredient ingredient = ingredients.get(ingredientIndex);
 
-        for (int itemIndex = 0;
-             itemIndex < availableItems.size();
-             itemIndex++) {
-
+        for (int itemIndex = 0; itemIndex < availableItems.size(); itemIndex++) {
             if (usedItems[itemIndex]) {
                 continue;
             }
 
-            if (!ingredient.test(
-                    availableItems.get(itemIndex)
-            )) {
+            if (!ingredient.test(availableItems.get(itemIndex))) {
                 continue;
             }
 
@@ -168,27 +149,19 @@ public final class CookingPotRecipe
     }
 
     @Override
-    public boolean canCraftInDimensions(
-            int width,
-            int height
-    ) {
+    public boolean canCraftInDimensions(int width, int height) {
         return width * height >= ingredients.size();
     }
 
     @Override
-    public ItemStack getResultItem(
-            HolderLookup.Provider registries
-    ) {
+    public ItemStack getResultItem(HolderLookup.Provider registries) {
         return result;
     }
 
     @Override
     public NonNullList<Ingredient> getIngredients() {
-        NonNullList<Ingredient> copy =
-                NonNullList.create();
-
+        NonNullList<Ingredient> copy = NonNullList.create();
         copy.addAll(ingredients);
-
         return copy;
     }
 
@@ -216,6 +189,10 @@ public final class CookingPotRecipe
 
     public boolean requiresClosedLid() {
         return requiresClosedLid;
+    }
+
+    public ItemStack getServingContainer() {
+        return servingContainer.copy();
     }
 
     public ItemStack getResult() {

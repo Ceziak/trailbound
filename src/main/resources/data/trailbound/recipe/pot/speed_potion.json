@@ -1,0 +1,27 @@
+{
+  "type": "trailbound:cooking_pot",
+  "ingredients": [
+    {
+      "item": "minecraft:nether_wart"
+    },
+    {
+      "item": "minecraft:sugar"
+    }
+  ],
+  "water": 1,
+  "cooking_time": 100,
+  "lid_closed": false,
+  "serving_container": {
+    "id": "minecraft:glass_bottle",
+    "count": 1
+  },
+  "result": {
+    "id": "minecraft:potion",
+    "count": 1,
+    "components": {
+      "minecraft:potion_contents": {
+        "potion": "minecraft:swiftness"
+      }
+    }
+  }
+}

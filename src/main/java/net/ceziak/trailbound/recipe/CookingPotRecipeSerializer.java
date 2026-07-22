@@ -20,60 +20,41 @@ public final class CookingPotRecipeSerializer
                             Ingredient.CODEC_NONEMPTY
                                     .listOf()
                                     .fieldOf("ingredients")
-                                    .forGetter(
-                                            CookingPotRecipe
-                                                    ::getIngredientList
-                                    ),
+                                    .forGetter(CookingPotRecipe::getIngredientList),
 
                             Codec.intRange(
                                             1,
                                             CookingPotBlockEntity.MAX_WATER
                                     )
                                     .fieldOf("water")
-                                    .forGetter(
-                                            CookingPotRecipe
-                                                    ::getRequiredWater
-                                    ),
+                                    .forGetter(CookingPotRecipe::getRequiredWater),
 
-                            Codec.intRange(
-                                            1,
-                                            72_000
-                                    )
-                                    .optionalFieldOf(
-                                            "cooking_time",
-                                            200
-                                    )
-                                    .forGetter(
-                                            CookingPotRecipe
-                                                    ::getCookingTime
-                                    ),
+                            Codec.intRange(1, 72_000)
+                                    .optionalFieldOf("cooking_time", 200)
+                                    .forGetter(CookingPotRecipe::getCookingTime),
 
                             Codec.BOOL
                                     .fieldOf("lid_closed")
-                                    .forGetter(
-                                            CookingPotRecipe
-                                                    ::requiresClosedLid
-                                    ),
+                                    .forGetter(CookingPotRecipe::requiresClosedLid),
+
+                            ItemStack.OPTIONAL_CODEC
+                                    .optionalFieldOf(
+                                            "serving_container",
+                                            ItemStack.EMPTY
+                                    )
+                                    .forGetter(CookingPotRecipe::getServingContainer),
 
                             ItemStack.STRICT_CODEC
                                     .fieldOf("result")
-                                    .forGetter(
-                                            CookingPotRecipe
-                                                    ::getResult
-                                    )
-                    ).apply(
-                            instance,
-                            CookingPotRecipe::new
-                    )
+                                    .forGetter(CookingPotRecipe::getResult)
+                    ).apply(instance, CookingPotRecipe::new)
             );
 
     public static final StreamCodec<
             RegistryFriendlyByteBuf,
             CookingPotRecipe
             > STREAM_CODEC =
-            ByteBufCodecs.fromCodecWithRegistries(
-                    CODEC.codec()
-            );
+            ByteBufCodecs.fromCodecWithRegistries(CODEC.codec());
 
     @Override
     public MapCodec<CookingPotRecipe> codec() {
@@ -81,10 +62,7 @@ public final class CookingPotRecipeSerializer
     }
 
     @Override
-    public StreamCodec<
-            RegistryFriendlyByteBuf,
-            CookingPotRecipe
-            > streamCodec() {
+    public StreamCodec<RegistryFriendlyByteBuf, CookingPotRecipe> streamCodec() {
         return STREAM_CODEC;
     }
 }

@@ -27,8 +27,7 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import java.util.List;
 import java.util.Optional;
 
-public final class CookingPotBlockEntity
-        extends BlockEntity {
+public final class CookingPotBlockEntity extends BlockEntity {
 
     public static final int MAX_WATER = 4;
     public static final int MAX_HEAT_TICKS = 200;
@@ -36,9 +35,6 @@ public final class CookingPotBlockEntity
 
     private static final int HUD_SYNC_INTERVAL = 5;
 
-    /*
-     * Physical liquid-surface heights in model pixels.
-     */
     private static final float LOWEST_LIQUID_HEIGHT = 3.25F;
     private static final float LIQUID_HEIGHT_PER_SERVING = 1.0F;
 
@@ -48,34 +44,25 @@ public final class CookingPotBlockEntity
                     ItemStack.EMPTY
             );
 
+    private final NonNullList<ItemStack> finishedRecipeIngredients =
+            NonNullList.withSize(
+                    INGREDIENT_SLOT_COUNT,
+                    ItemStack.EMPTY
+            );
+
     private ItemStack result = ItemStack.EMPTY;
+    private ItemStack resultServingContainer = ItemStack.EMPTY;
 
     private int waterAmount;
     private int heatProgress;
 
-    /*
-     * Cooking progress is separate from water heat.
-     */
     private int cookingProgress;
     private int activeCookingTime;
-
     private ResourceLocation activeRecipeId;
-
-    /*
-     * true  = close the lid
-     * false = leave the lid open
-     */
     private boolean activeRecipeRequiresClosedLid;
 
-    public CookingPotBlockEntity(
-            BlockPos pos,
-            BlockState state
-    ) {
-        super(
-                ModBlockEntities.COOKING_POT.get(),
-                pos,
-                state
-        );
+    public CookingPotBlockEntity(BlockPos pos, BlockState state) {
+        super(ModBlockEntities.COOKING_POT.get(), pos, state);
     }
 
     public static void serverTick(
@@ -90,16 +77,10 @@ public final class CookingPotBlockEntity
 
         int previousHeat = pot.heatProgress;
 
-        boolean receivingHeat =
-                isActiveHeatSource(
-                        level.getBlockState(
-                                pos.below()
-                        )
-                );
+        boolean receivingHeat = isActiveHeatSource(
+                level.getBlockState(pos.below())
+        );
 
-        /*
-         * Heat or cool the water.
-         */
         if (pot.hasWater() && receivingHeat) {
             pot.heatProgress = Math.min(
                     MAX_HEAT_TICKS,
@@ -119,34 +100,24 @@ public final class CookingPotBlockEntity
                 previousHeat != pot.heatProgress;
 
         boolean cookingChanged =
-                cookingResult
-                        != CookingTickResult.NONE;
+                cookingResult != CookingTickResult.NONE;
 
         boolean anythingChanged =
                 heatChanged || cookingChanged;
 
-        /*
-         * Only treat an endpoint as newly reached when the heat
-         * actually changed this tick. This prevents syncing every
-         * tick while the water remains at 100%.
-         */
         boolean heatReachedEndpoint =
                 heatChanged
                         && (
                         pot.heatProgress == 0
-                                || pot.heatProgress
-                                == MAX_HEAT_TICKS
+                                || pot.heatProgress == MAX_HEAT_TICKS
                 );
 
         boolean immediateSync =
                 heatReachedEndpoint
-                        || cookingResult
-                        == CookingTickResult.IMMEDIATE;
+                        || cookingResult == CookingTickResult.IMMEDIATE;
 
         boolean periodicSync =
-                level.getGameTime()
-                        % HUD_SYNC_INTERVAL
-                        == 0;
+                level.getGameTime() % HUD_SYNC_INTERVAL == 0;
 
         if (anythingChanged) {
             pot.setChanged();
@@ -156,15 +127,10 @@ public final class CookingPotBlockEntity
             }
         }
 
-        /*
-         * Keep the visual HEATED property synchronized with the
-         * actual water temperature.
-         */
         boolean shouldBeHeated =
                 pot.heatProgress >= MAX_HEAT_TICKS;
 
-        if (state.getValue(CookingPotBlock.HEATED)
-                != shouldBeHeated) {
+        if (state.getValue(CookingPotBlock.HEATED) != shouldBeHeated) {
             level.setBlock(
                     pos,
                     state.setValue(
@@ -176,47 +142,31 @@ public final class CookingPotBlockEntity
         }
     }
 
-    private CookingTickResult tickCooking(
-            ServerLevel level
-    ) {
-        CookingPotRecipeInput input =
-                createRecipeInput();
+    private CookingTickResult tickCooking(ServerLevel level) {
+        CookingPotRecipeInput input = createRecipeInput();
 
         Optional<RecipeHolder<CookingPotRecipe>> match =
                 level.getRecipeManager()
                         .getRecipeFor(
-                                ModRecipes
-                                        .COOKING_POT_TYPE
-                                        .get(),
+                                ModRecipes.COOKING_POT_TYPE.get(),
                                 input,
                                 level
                         );
 
-        /*
-         * Current contents do not match any recipe.
-         */
         if (match.isEmpty()) {
             return clearActiveRecipeState()
                     ? CookingTickResult.IMMEDIATE
                     : CookingTickResult.NONE;
         }
 
-        RecipeHolder<CookingPotRecipe> holder =
-                match.get();
+        RecipeHolder<CookingPotRecipe> holder = match.get();
+        CookingPotRecipe recipe = holder.value();
 
-        CookingPotRecipe recipe =
-                holder.value();
+        ItemStack recipeResult = recipe.assemble(
+                input,
+                level.registryAccess()
+        );
 
-        ItemStack recipeResult =
-                recipe.assemble(
-                        input,
-                        level.registryAccess()
-                );
-
-        /*
-         * Do not start another recipe while its output cannot
-         * fit inside the result slot.
-         */
         if (!canAcceptResult(recipeResult)) {
             return clearActiveRecipeState()
                     ? CookingTickResult.IMMEDIATE
@@ -225,13 +175,10 @@ public final class CookingPotBlockEntity
 
         boolean recipeChanged =
                 activeRecipeId == null
-                        || !activeRecipeId.equals(
-                        holder.id()
-                );
+                        || !activeRecipeId.equals(holder.id());
 
         boolean timeChanged =
-                activeCookingTime
-                        != recipe.getCookingTime();
+                activeCookingTime != recipe.getCookingTime();
 
         boolean lidRequirementChanged =
                 activeRecipeRequiresClosedLid
@@ -243,8 +190,7 @@ public final class CookingPotBlockEntity
         }
 
         if (timeChanged) {
-            activeCookingTime =
-                    recipe.getCookingTime();
+            activeCookingTime = recipe.getCookingTime();
         }
 
         if (lidRequirementChanged) {
@@ -257,21 +203,12 @@ public final class CookingPotBlockEntity
                         || timeChanged
                         || lidRequirementChanged;
 
-        /*
-         * The recipe stays detected while the lid is wrong.
-         * Cooking simply pauses, allowing the HUD to show an
-         * instruction without losing progress.
-         */
         if (!isLidStateCorrect()) {
             return activeRecipeChanged
                     ? CookingTickResult.IMMEDIATE
                     : CookingTickResult.NONE;
         }
 
-        /*
-         * The cooking timer only advances after the water has
-         * reached boiling temperature.
-         */
         if (!isHot()) {
             return activeRecipeChanged
                     ? CookingTickResult.IMMEDIATE
@@ -281,12 +218,7 @@ public final class CookingPotBlockEntity
         cookingProgress++;
 
         if (cookingProgress >= activeCookingTime) {
-            finishCooking(
-                    recipe,
-                    input,
-                    level
-            );
-
+            finishCooking(recipe, input, level);
             return CookingTickResult.IMMEDIATE;
         }
 
@@ -298,29 +230,30 @@ public final class CookingPotBlockEntity
             CookingPotRecipeInput input,
             ServerLevel level
     ) {
-        ItemStack craftedResult =
-                recipe.assemble(
-                        input,
-                        level.registryAccess()
-                );
+        ItemStack craftedResult = recipe.assemble(
+                input,
+                level.registryAccess()
+        );
 
-        if (result.isEmpty()) {
-            result = craftedResult.copy();
-        } else {
-            result.grow(
-                    craftedResult.getCount()
-            );
-        }
+        result = craftedResult.copy();
+        resultServingContainer =
+                recipe.getServingContainer();
 
         /*
-         * Matching is exact, so every occupied slot belongs to
-         * the completed recipe.
+         * Container-based meals, such as stew, must not drop
+         * directly when the pot is broken. Remember the exact
+         * ingredients that were inserted so they can be returned.
          */
+        if (!resultServingContainer.isEmpty()) {
+            rememberFinishedRecipeIngredients();
+        } else {
+            clearFinishedRecipeIngredients();
+        }
+
         clearIngredients();
 
         waterAmount = Mth.clamp(
-                waterAmount
-                        - recipe.getRequiredWater(),
+                waterAmount - recipe.getRequiredWater(),
                 0,
                 MAX_WATER
         );
@@ -332,27 +265,8 @@ public final class CookingPotBlockEntity
         clearActiveRecipeState();
     }
 
-    private boolean canAcceptResult(
-            ItemStack incoming
-    ) {
-        if (incoming.isEmpty()) {
-            return false;
-        }
-
-        if (result.isEmpty()) {
-            return true;
-        }
-
-        if (!ItemStack.isSameItemSameComponents(
-                result,
-                incoming
-        )) {
-            return false;
-        }
-
-        return result.getCount()
-                + incoming.getCount()
-                <= result.getMaxStackSize();
+    private boolean canAcceptResult(ItemStack incoming) {
+        return result.isEmpty() && !incoming.isEmpty();
     }
 
     private CookingPotRecipeInput createRecipeInput() {
@@ -378,36 +292,61 @@ public final class CookingPotBlockEntity
     }
 
     private void clearIngredients() {
+        for (int slot = 0; slot < ingredients.size(); slot++) {
+            ingredients.set(slot, ItemStack.EMPTY);
+        }
+    }
+
+    private void rememberFinishedRecipeIngredients() {
+        clearFinishedRecipeIngredients();
+
         for (int slot = 0;
              slot < ingredients.size();
              slot++) {
 
-            ingredients.set(
+            ItemStack ingredient =
+                    ingredients.get(slot);
+
+            if (!ingredient.isEmpty()) {
+                finishedRecipeIngredients.set(
+                        slot,
+                        ingredient.copy()
+                );
+            }
+        }
+    }
+
+    private void clearFinishedRecipeIngredients() {
+        for (int slot = 0;
+             slot < finishedRecipeIngredients.size();
+             slot++) {
+
+            finishedRecipeIngredients.set(
                     slot,
                     ItemStack.EMPTY
             );
         }
     }
 
-    private static boolean isActiveHeatSource(
-            BlockState state
+    public ItemStack getFinishedRecipeIngredient(
+            int slot
     ) {
-        if (!state.is(
-                ModTags.Blocks.POT_HEAT_SOURCES
-        )) {
+        if (slot < 0
+                || slot >= finishedRecipeIngredients.size()) {
+            return ItemStack.EMPTY;
+        }
+
+        return finishedRecipeIngredients
+                .get(slot);
+    }
+
+    private static boolean isActiveHeatSource(BlockState state) {
+        if (!state.is(ModTags.Blocks.POT_HEAT_SOURCES)) {
             return false;
         }
 
-        /*
-         * Campfires only work while lit. A tagged block without
-         * a LIT property is treated as permanently active.
-         */
-        if (state.hasProperty(
-                BlockStateProperties.LIT
-        )) {
-            return state.getValue(
-                    BlockStateProperties.LIT
-            );
+        if (state.hasProperty(BlockStateProperties.LIT)) {
+            return state.getValue(BlockStateProperties.LIT);
         }
 
         return true;
@@ -416,19 +355,15 @@ public final class CookingPotBlockEntity
     public boolean isReceivingHeat() {
         return level != null
                 && isActiveHeatSource(
-                level.getBlockState(
-                        worldPosition.below()
-                )
-        );
+                        level.getBlockState(worldPosition.below())
+                );
     }
 
     public int getWaterAmount() {
         return waterAmount;
     }
 
-    public void setWaterAmount(
-            int waterAmount
-    ) {
+    public void setWaterAmount(int waterAmount) {
         int clamped = Mth.clamp(
                 waterAmount,
                 0,
@@ -459,9 +394,7 @@ public final class CookingPotBlockEntity
 
     public int getHeatPercentage() {
         return Math.round(
-                heatProgress
-                        * 100.0F
-                        / MAX_HEAT_TICKS
+                heatProgress * 100.0F / MAX_HEAT_TICKS
         );
     }
 
@@ -523,19 +456,14 @@ public final class CookingPotBlockEntity
         }
 
         boolean lidCurrentlyClosed =
-                getBlockState().getValue(
-                        CookingPotBlock.LID
-                );
+                getBlockState().getValue(CookingPotBlock.LID);
 
         return lidCurrentlyClosed
                 == activeRecipeRequiresClosedLid;
     }
 
-    public ItemStack getIngredient(
-            int slot
-    ) {
-        if (slot < 0
-                || slot >= ingredients.size()) {
+    public ItemStack getIngredient(int slot) {
+        if (slot < 0 || slot >= ingredients.size()) {
             return ItemStack.EMPTY;
         }
 
@@ -562,17 +490,12 @@ public final class CookingPotBlockEntity
         return false;
     }
 
-    public boolean addIngredient(
-            ItemStack stack
-    ) {
+    public boolean addIngredient(ItemStack stack) {
         if (stack.isEmpty() || hasResult()) {
             return false;
         }
 
-        for (int slot = 0;
-             slot < ingredients.size();
-             slot++) {
-
+        for (int slot = 0; slot < ingredients.size(); slot++) {
             if (ingredients.get(slot).isEmpty()) {
                 ingredients.set(
                         slot,
@@ -581,7 +504,6 @@ public final class CookingPotBlockEntity
 
                 clearActiveRecipeState();
                 sync();
-
                 return true;
             }
         }
@@ -590,26 +512,16 @@ public final class CookingPotBlockEntity
     }
 
     public ItemStack removeLastIngredient() {
-        for (int slot =
-             ingredients.size() - 1;
-             slot >= 0;
-             slot--) {
-
-            ItemStack ingredient =
-                    ingredients.get(slot);
+        for (int slot = ingredients.size() - 1; slot >= 0; slot--) {
+            ItemStack ingredient = ingredients.get(slot);
 
             if (!ingredient.isEmpty()) {
-                ItemStack removed =
-                        ingredient.copy();
+                ItemStack removed = ingredient.copy();
 
-                ingredients.set(
-                        slot,
-                        ItemStack.EMPTY
-                );
+                ingredients.set(slot, ItemStack.EMPTY);
 
                 clearActiveRecipeState();
                 sync();
-
                 return removed;
             }
         }
@@ -625,6 +537,23 @@ public final class CookingPotBlockEntity
         return result.copy();
     }
 
+    public boolean requiresServingContainer() {
+        return hasResult() && !resultServingContainer.isEmpty();
+    }
+
+    public ItemStack getRequiredServingContainer() {
+        return resultServingContainer.copy();
+    }
+
+    public boolean canTakeResultWith(ItemStack heldStack) {
+        return hasResult()
+                && requiresServingContainer()
+                && ItemStack.isSameItemSameComponents(
+                        heldStack,
+                        resultServingContainer
+                );
+    }
+
     public ItemStack takeResult() {
         if (result.isEmpty()) {
             return ItemStack.EMPTY;
@@ -633,9 +562,16 @@ public final class CookingPotBlockEntity
         ItemStack taken = result.copy();
 
         result = ItemStack.EMPTY;
+        resultServingContainer = ItemStack.EMPTY;
+
+        /*
+         * The meal was collected correctly using its bowl or
+         * another required container, so the ingredient backup
+         * is no longer needed.
+         */
+        clearFinishedRecipeIngredients();
 
         sync();
-
         return taken;
     }
 
@@ -662,10 +598,7 @@ public final class CookingPotBlockEntity
             CompoundTag tag,
             HolderLookup.Provider registries
     ) {
-        super.loadAdditional(
-                tag,
-                registries
-        );
+        super.loadAdditional(tag, registries);
 
         waterAmount = Mth.clamp(
                 tag.getInt("WaterAmount"),
@@ -690,19 +623,22 @@ public final class CookingPotBlockEntity
         );
 
         activeRecipeRequiresClosedLid =
-                tag.getBoolean(
-                        "ActiveRecipeRequiresClosedLid"
-                );
+                tag.getBoolean("ActiveRecipeRequiresClosedLid");
 
-        /*
-         * Clear stale client stacks before loading the newly
-         * synchronized ingredient list.
-         */
         clearIngredients();
+        clearFinishedRecipeIngredients();
 
         ContainerHelper.loadAllItems(
                 tag,
                 ingredients,
+                registries
+        );
+
+        ContainerHelper.loadAllItems(
+                tag.getCompound(
+                        "FinishedRecipeIngredients"
+                ),
+                finishedRecipeIngredients,
                 registries
         );
 
@@ -711,16 +647,21 @@ public final class CookingPotBlockEntity
                 tag.getCompound("Result")
         );
 
+        resultServingContainer = ItemStack.parseOptional(
+                registries,
+                tag.getCompound("ResultServingContainer")
+        );
+
+        if (result.isEmpty()) {
+            resultServingContainer = ItemStack.EMPTY;
+        }
+
         activeRecipeId = null;
 
-        String activeRecipe =
-                tag.getString("ActiveRecipe");
+        String activeRecipe = tag.getString("ActiveRecipe");
 
         if (!activeRecipe.isEmpty()) {
-            activeRecipeId =
-                    ResourceLocation.tryParse(
-                            activeRecipe
-                    );
+            activeRecipeId = ResourceLocation.tryParse(activeRecipe);
         }
 
         if (activeRecipeId == null) {
@@ -735,30 +676,12 @@ public final class CookingPotBlockEntity
             CompoundTag tag,
             HolderLookup.Provider registries
     ) {
-        super.saveAdditional(
-                tag,
-                registries
-        );
+        super.saveAdditional(tag, registries);
 
-        tag.putInt(
-                "WaterAmount",
-                waterAmount
-        );
-
-        tag.putInt(
-                "HeatProgress",
-                heatProgress
-        );
-
-        tag.putInt(
-                "CookingProgress",
-                cookingProgress
-        );
-
-        tag.putInt(
-                "ActiveCookingTime",
-                activeCookingTime
-        );
+        tag.putInt("WaterAmount", waterAmount);
+        tag.putInt("HeatProgress", heatProgress);
+        tag.putInt("CookingProgress", cookingProgress);
+        tag.putInt("ActiveCookingTime", activeCookingTime);
 
         tag.putBoolean(
                 "ActiveRecipeRequiresClosedLid",
@@ -778,9 +701,28 @@ public final class CookingPotBlockEntity
                 registries
         );
 
+        CompoundTag finishedIngredientsTag =
+                new CompoundTag();
+
+        ContainerHelper.saveAllItems(
+                finishedIngredientsTag,
+                finishedRecipeIngredients,
+                registries
+        );
+
+        tag.put(
+                "FinishedRecipeIngredients",
+                finishedIngredientsTag
+        );
+
         tag.put(
                 "Result",
                 result.saveOptional(registries)
+        );
+
+        tag.put(
+                "ResultServingContainer",
+                resultServingContainer.saveOptional(registries)
         );
     }
 
@@ -789,32 +731,23 @@ public final class CookingPotBlockEntity
             HolderLookup.Provider registries
     ) {
         CompoundTag tag = new CompoundTag();
-
-        saveAdditional(
-                tag,
-                registries
-        );
-
+        saveAdditional(tag, registries);
         return tag;
     }
 
     @Override
-    public Packet<ClientGamePacketListener>
-    getUpdatePacket() {
-        return ClientboundBlockEntityDataPacket
-                .create(this);
+    public Packet<ClientGamePacketListener> getUpdatePacket() {
+        return ClientboundBlockEntityDataPacket.create(this);
     }
 
     private void sync() {
         setChanged();
 
-        if (level == null
-                || level.isClientSide()) {
+        if (level == null || level.isClientSide()) {
             return;
         }
 
-        BlockState state =
-                getBlockState();
+        BlockState state = getBlockState();
 
         level.sendBlockUpdated(
                 worldPosition,

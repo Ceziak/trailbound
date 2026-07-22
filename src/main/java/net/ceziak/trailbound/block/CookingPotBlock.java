@@ -83,9 +83,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
                     14.0D
             );
 
-    public CookingPotBlock(
-            BlockBehaviour.Properties properties
-    ) {
+    public CookingPotBlock(BlockBehaviour.Properties properties) {
         super(properties);
 
         registerDefaultState(
@@ -103,17 +101,12 @@ public final class CookingPotBlock extends BaseEntityBlock {
     }
 
     @Override
-    protected RenderShape getRenderShape(
-            BlockState state
-    ) {
+    protected RenderShape getRenderShape(BlockState state) {
         return RenderShape.MODEL;
     }
 
     @Override
-    public BlockEntity newBlockEntity(
-            BlockPos pos,
-            BlockState state
-    ) {
+    public BlockEntity newBlockEntity(BlockPos pos, BlockState state) {
         return new CookingPotBlockEntity(pos, state);
     }
 
@@ -135,9 +128,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
     }
 
     @Override
-    public BlockState getStateForPlacement(
-            BlockPlaceContext context
-    ) {
+    public BlockState getStateForPlacement(BlockPlaceContext context) {
         BlockPos placedPos = context.getClickedPos();
 
         boolean supported = context.getLevel()
@@ -147,8 +138,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
         return defaultBlockState()
                 .setValue(
                         FACING,
-                        context.getHorizontalDirection()
-                                .getOpposite()
+                        context.getHorizontalDirection().getOpposite()
                 )
                 .setValue(SUPPORTED, supported);
     }
@@ -161,13 +151,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
             LivingEntity placer,
             ItemStack stack
     ) {
-        super.setPlacedBy(
-                level,
-                pos,
-                state,
-                placer,
-                stack
-        );
+        super.setPlacedBy(level, pos, state, placer, stack);
 
         if (level.isClientSide()) {
             return;
@@ -179,9 +163,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         if (state.is(ModBlocks.WATER_POT_BLOCK.get())) {
-            pot.setWaterAmount(
-                    CookingPotBlockEntity.MAX_WATER
-            );
+            pot.setWaterAmount(CookingPotBlockEntity.MAX_WATER);
         } else {
             pot.setWaterAmount(0);
         }
@@ -197,22 +179,62 @@ public final class CookingPotBlock extends BaseEntityBlock {
             InteractionHand hand,
             BlockHitResult hitResult
     ) {
-        boolean glassBottle =
-                stack.is(Items.GLASS_BOTTLE);
-
-        boolean waterBottle =
-                isWaterBottle(stack);
-
-        boolean waterBucket =
-                stack.is(Items.WATER_BUCKET);
-
-        boolean ingredient =
-                stack.is(ModTags.Items.POT_INGREDIENTS);
 
         /*
-         * Unsupported items continue through Minecraft's normal
-         * interaction pipeline.
+         * Sneak-right-click always controls the lid, including while
+         * holding the bowl needed to collect a finished meal.
          */
+        if (player.isShiftKeyDown()) {
+            toggleLid(
+                    state,
+                    level,
+                    pos
+            );
+
+            return ItemInteractionResult.sidedSuccess(
+                    level.isClientSide()
+            );
+        }
+
+        if (!(level.getBlockEntity(pos)
+                instanceof CookingPotBlockEntity pot)) {
+            return ItemInteractionResult
+                    .PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
+
+        /*
+         * Finished meals are handled before bottles, buckets or
+         * ingredients. A recipe may require a serving container,
+         * such as a bowl for rabbit stew.
+         */
+        if (pot.hasResult()) {
+            if (state.getValue(LID)) {
+                return ItemInteractionResult.FAIL;
+            }
+
+            if (!pot.requiresServingContainer()) {
+                return ItemInteractionResult.FAIL;
+            }
+
+            if (!pot.canTakeResultWith(stack)) {
+                return ItemInteractionResult.FAIL;
+            }
+
+            return takeCookedResultWithContainer(
+                    stack,
+                    level,
+                    pos,
+                    player,
+                    hand,
+                    pot
+            );
+        }
+
+        boolean glassBottle = stack.is(Items.GLASS_BOTTLE);
+        boolean waterBottle = isWaterBottle(stack);
+        boolean waterBucket = stack.is(Items.WATER_BUCKET);
+        boolean ingredient = stack.is(ModTags.Items.POT_INGREDIENTS);
+
         if (!glassBottle
                 && !waterBottle
                 && !waterBucket
@@ -221,16 +243,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
                     .PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
-        /*
-         * Nothing can be inserted or extracted while the lid
-         * is closed.
-         */
         if (state.getValue(LID)) {
-            return ItemInteractionResult.FAIL;
-        }
-
-        if (!(level.getBlockEntity(pos)
-                instanceof CookingPotBlockEntity pot)) {
             return ItemInteractionResult.FAIL;
         }
 
@@ -267,15 +280,55 @@ public final class CookingPotBlock extends BaseEntityBlock {
             );
         }
 
-        /*
-         * The only remaining recognised type is a tagged
-         * ingredient.
-         */
         return insertIngredient(
                 stack,
                 level,
                 player,
                 pot
+        );
+    }
+
+    private static ItemInteractionResult takeCookedResultWithContainer(
+            ItemStack containerStack,
+            Level level,
+            BlockPos pos,
+            Player player,
+            InteractionHand hand,
+            CookingPotBlockEntity pot
+    ) {
+        if (!level.isClientSide()) {
+            ItemStack cookedResult = pot.takeResult();
+
+            if (cookedResult.isEmpty()) {
+                return ItemInteractionResult.FAIL;
+            }
+
+            ItemStack handResult = ItemUtils.createFilledResult(
+                    containerStack,
+                    player,
+                    cookedResult
+            );
+
+            player.setItemInHand(hand, handResult);
+
+            level.playSound(
+                    null,
+                    pos,
+                    SoundEvents.ITEM_PICKUP,
+                    SoundSource.BLOCKS,
+                    0.8F,
+                    1.0F
+            );
+
+            player.awardStat(
+                    Stats.ITEM_USED.get(
+                            containerStack.getItem()
+                    )
+            );
+        }
+
+        return ItemInteractionResult.sidedSuccess(
+                level.isClientSide()
         );
     }
 
@@ -292,18 +345,16 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         if (!level.isClientSide()) {
-            ItemStack waterBottle =
-                    PotionContents.createItemStack(
-                            Items.POTION,
-                            Potions.WATER
-                    );
+            ItemStack waterBottle = PotionContents.createItemStack(
+                    Items.POTION,
+                    Potions.WATER
+            );
 
-            ItemStack result =
-                    ItemUtils.createFilledResult(
-                            glassBottles,
-                            player,
-                            waterBottle
-                    );
+            ItemStack result = ItemUtils.createFilledResult(
+                    glassBottles,
+                    player,
+                    waterBottle
+            );
 
             player.setItemInHand(hand, result);
 
@@ -352,20 +403,14 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         if (!level.isClientSide()) {
-            ItemStack result =
-                    ItemUtils.createFilledResult(
-                            waterBottle,
-                            player,
-                            new ItemStack(
-                                    Items.GLASS_BOTTLE
-                            )
-                    );
+            ItemStack result = ItemUtils.createFilledResult(
+                    waterBottle,
+                    player,
+                    new ItemStack(Items.GLASS_BOTTLE)
+            );
 
             player.setItemInHand(hand, result);
 
-            /*
-             * One bottle adds one of the four servings.
-             */
             pot.setWaterAmount(
                     pot.getWaterAmount() + 1
             );
@@ -411,12 +456,11 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         if (!level.isClientSide()) {
-            ItemStack result =
-                    ItemUtils.createFilledResult(
-                            waterBucket,
-                            player,
-                            new ItemStack(Items.BUCKET)
-                    );
+            ItemStack result = ItemUtils.createFilledResult(
+                    waterBucket,
+                    player,
+                    new ItemStack(Items.BUCKET)
+            );
 
             player.setItemInHand(hand, result);
 
@@ -463,13 +507,9 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         if (!level.isClientSide()) {
-            boolean inserted =
-                    pot.addIngredient(stack);
+            boolean inserted = pot.addIngredient(stack);
 
             if (inserted) {
-                /*
-                 * consume() respects creative-mode players.
-                 */
                 stack.consume(1, player);
             }
         }
@@ -479,9 +519,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
         );
     }
 
-    private static boolean isWaterBottle(
-            ItemStack stack
-    ) {
+    private static boolean isWaterBottle(ItemStack stack) {
         if (!stack.is(Items.POTION)) {
             return false;
         }
@@ -494,6 +532,22 @@ public final class CookingPotBlock extends BaseEntityBlock {
                 && contents.is(Potions.WATER);
     }
 
+    private static void toggleLid(
+            BlockState state,
+            Level level,
+            BlockPos pos
+    ) {
+        if (level.isClientSide()) {
+            return;
+        }
+
+        level.setBlock(
+                pos,
+                state.cycle(LID),
+                Block.UPDATE_ALL
+        );
+    }
+
     @Override
     protected InteractionResult useWithoutItem(
             BlockState state,
@@ -502,25 +556,23 @@ public final class CookingPotBlock extends BaseEntityBlock {
             Player player,
             BlockHitResult hitResult
     ) {
-        if (!player.getMainHandItem().isEmpty()) {
-            return InteractionResult.PASS;
-        }
-
         /*
-         * Sneak + empty hand toggles the lid.
+         * Handle the lid before any other checks.
          */
         if (player.isShiftKeyDown()) {
-            if (!level.isClientSide()) {
-                level.setBlock(
-                        pos,
-                        state.cycle(LID),
-                        Block.UPDATE_ALL
-                );
-            }
+            toggleLid(
+                    state,
+                    level,
+                    pos
+            );
 
             return InteractionResult.sidedSuccess(
                     level.isClientSide()
             );
+        }
+
+        if (!player.getMainHandItem().isEmpty()) {
+            return InteractionResult.PASS;
         }
 
         if (state.getValue(LID)) {
@@ -532,18 +584,23 @@ public final class CookingPotBlock extends BaseEntityBlock {
             return InteractionResult.PASS;
         }
 
-        /*
-         * Finished food has priority over removing ingredients.
-         */
         if (pot.hasResult()) {
+            /*
+             * Recipes with a serving container must be collected
+             * using that item. Container-free recipes may still be
+             * collected with an empty hand.
+             */
+            if (pot.requiresServingContainer()) {
+                return InteractionResult.sidedSuccess(
+                        level.isClientSide()
+                );
+            }
+
             if (!level.isClientSide()) {
-                ItemStack result =
-                        pot.takeResult();
+                ItemStack result = pot.takeResult();
 
                 player.getInventory()
-                        .placeItemBackInInventory(
-                                result
-                        );
+                        .placeItemBackInInventory(result);
             }
 
             return InteractionResult.sidedSuccess(
@@ -556,14 +613,11 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         if (!level.isClientSide()) {
-            ItemStack removed =
-                    pot.removeLastIngredient();
+            ItemStack removed = pot.removeLastIngredient();
 
             if (!removed.isEmpty()) {
                 player.getInventory()
-                        .placeItemBackInInventory(
-                                removed
-                        );
+                        .placeItemBackInInventory(removed);
             }
         }
 
@@ -580,40 +634,63 @@ public final class CookingPotBlock extends BaseEntityBlock {
             BlockState newState,
             boolean movedByPiston
     ) {
-        /*
-         * Property changes such as LID and HEATED must not
-         * release the ingredients.
-         */
-
         if (!state.is(newState.getBlock())
                 && !level.isClientSide()
                 && level.getBlockEntity(pos)
                 instanceof CookingPotBlockEntity pot) {
 
-            ItemStack cookedResult =
-                    pot.getResult();
-
-            if (!cookedResult.isEmpty()) {
-                Block.popResource(
-                        level,
-                        pos,
-                        cookedResult
-                );
-            }
-
             for (int slot = 0;
-                 slot < CookingPotBlockEntity
-                         .INGREDIENT_SLOT_COUNT;
+                 slot < CookingPotBlockEntity.INGREDIENT_SLOT_COUNT;
                  slot++) {
 
-                ItemStack ingredient =
-                        pot.getIngredient(slot);
+                ItemStack ingredient = pot.getIngredient(slot);
 
                 if (!ingredient.isEmpty()) {
                     Block.popResource(
                             level,
                             pos,
                             ingredient.copy()
+                    );
+                }
+            }
+
+            ItemStack cookedResult =
+                    pot.getResult();
+
+            if (!cookedResult.isEmpty()) {
+                /*
+                 * A meal requiring a serving container cannot be obtained
+                 * simply by breaking the pot. Return the ingredients used
+                 * to make it instead.
+                 */
+                if (pot.requiresServingContainer()) {
+                    for (int slot = 0;
+                         slot < CookingPotBlockEntity
+                                 .INGREDIENT_SLOT_COUNT;
+                         slot++) {
+
+                        ItemStack originalIngredient =
+                                pot.getFinishedRecipeIngredient(
+                                        slot
+                                );
+
+                        if (!originalIngredient.isEmpty()) {
+                            Block.popResource(
+                                    level,
+                                    pos,
+                                    originalIngredient.copy()
+                            );
+                        }
+                    }
+                } else {
+                    /*
+                     * Recipes with no required serving container may still
+                     * drop their finished output normally.
+                     */
+                    Block.popResource(
+                            level,
+                            pos,
+                            cookedResult
                     );
                 }
             }
@@ -635,12 +712,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
             BlockPos pos,
             RandomSource random
     ) {
-        super.animateTick(
-                state,
-                level,
-                pos,
-                random
-        );
+        super.animateTick(state, level, pos, random);
 
         if (!state.getValue(HEATED)
                 || state.getValue(LID)) {
@@ -685,9 +757,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
     ) {
         return state.setValue(
                 FACING,
-                rotation.rotate(
-                        state.getValue(FACING)
-                )
+                rotation.rotate(state.getValue(FACING))
         );
     }
 
@@ -697,9 +767,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
             Mirror mirror
     ) {
         return state.rotate(
-                mirror.getRotation(
-                        state.getValue(FACING)
-                )
+                mirror.getRotation(state.getValue(FACING))
         );
     }
 
@@ -725,10 +793,9 @@ public final class CookingPotBlock extends BaseEntityBlock {
             BlockPos neighbourPos
     ) {
         if (direction == Direction.DOWN) {
-            boolean supported =
-                    neighbourState.is(
-                            BlockTags.CAMPFIRES
-                    );
+            boolean supported = neighbourState.is(
+                    BlockTags.CAMPFIRES
+            );
 
             return state.setValue(
                     SUPPORTED,
