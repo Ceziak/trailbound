@@ -4,7 +4,18 @@
   "item.trailbound.pot_of_water": "Pot of Water",
 
   "block.trailbound.pot_block": "Cooking Pot",
-  "block.trailbound.water_pot_block": "Water-Filled Cooking Pot",
+  "block.trailbound.water_pot_block": "Cooking Pot",
 
-  "creativetab.trailbound.trailbound": "Trailbound"
+  "creativetab.trailbound.trailbound": "Trailbound",
+
+  "gui.trailbound.cooking_pot": "Cooking Pot",
+  "gui.trailbound.water": "Water",
+  "gui.trailbound.servings": "%1$s / %2$s servings",
+  "gui.trailbound.heat": "Heat",
+
+  "gui.trailbound.status.empty": "Empty",
+  "gui.trailbound.status.cold": "Cold",
+  "gui.trailbound.status.heating": "Heating",
+  "gui.trailbound.status.cooling": "Cooling",
+  "gui.trailbound.status.boiling": "Boiling"
 }

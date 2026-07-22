@@ -17,15 +17,23 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 
 public final class CookingPotBlockEntity extends BlockEntity {
 
-    /*
-     * Later this can represent four cups of tea.
+    /**
+     * Maximum number of servings held by the pot.
      */
     public static final int MAX_WATER = 4;
 
-    /*
-     * 200 game ticks = 10 seconds.
+    /**
+     * 200 ticks = 10 seconds.
      */
     public static final int MAX_HEAT_TICKS = 200;
+
+    /**
+     * Send a HUD update every five ticks.
+     *
+     * That is four updates per second, while the HUD smoothly
+     * animates between the received values.
+     */
+    private static final int HUD_SYNC_INTERVAL = 5;
 
     private int waterAmount;
     private int heatProgress;
@@ -43,19 +51,20 @@ public final class CookingPotBlockEntity extends BlockEntity {
             BlockState state,
             CookingPotBlockEntity pot
     ) {
-        boolean hasActiveHeat =
-                isActiveHeatSource(level.getBlockState(pos.below()));
+        boolean receivingHeat = isActiveHeatSource(
+                level.getBlockState(pos.below())
+        );
 
         int previousHeat = pot.heatProgress;
 
-        if (pot.hasWater() && hasActiveHeat) {
+        if (pot.hasWater() && receivingHeat) {
             pot.heatProgress = Math.min(
                     MAX_HEAT_TICKS,
                     pot.heatProgress + 1
             );
         } else {
             /*
-             * The pot cools twice as quickly as it heats.
+             * Cool twice as quickly as the pot heats.
              */
             pot.heatProgress = Math.max(
                     0,
@@ -65,6 +74,23 @@ public final class CookingPotBlockEntity extends BlockEntity {
 
         if (previousHeat != pot.heatProgress) {
             pot.setChanged();
+
+            /*
+             * Synchronise periodically instead of every tick.
+             *
+             * Endpoints are always synchronised immediately so
+             * the HUD never misses "Cold" or "Boiling".
+             */
+            boolean reachedEndpoint =
+                    pot.heatProgress == 0
+                            || pot.heatProgress == MAX_HEAT_TICKS;
+
+            boolean periodicUpdate =
+                    level.getGameTime() % HUD_SYNC_INTERVAL == 0;
+
+            if (reachedEndpoint || periodicUpdate) {
+                pot.sync();
+            }
         }
 
         boolean shouldBeHeated =
@@ -83,40 +109,6 @@ public final class CookingPotBlockEntity extends BlockEntity {
         }
     }
 
-    /**
-     * RGB colour used by the liquid renderer.
-     *
-     * Later, tea recipes can provide their own colour.
-     */
-    public int getLiquidColor() {
-        return 0x3F76E4;
-    }
-
-    /**
-     * Transparency from 0 to 255.
-     */
-    public int getLiquidAlpha() {
-        return 190;
-    }
-
-    /**
-     * Liquid height expressed in model units.
-     *
-     * Your pot's inner rim is approximately Y = 7.
-     */
-    public float getLiquidRenderHeight() {
-        if (!hasWater()) {
-            return 0.0F;
-        }
-
-        /*
-         * Later, this can change based on servings.
-         *
-         * For now the full pot surface is at 6.25 model units.
-         */
-        return 6.25F;
-    }
-
     private static boolean isActiveHeatSource(
             BlockState state
     ) {
@@ -125,16 +117,30 @@ public final class CookingPotBlockEntity extends BlockEntity {
         }
 
         /*
-         * Campfires have a LIT property.
+         * Campfires only produce heat while lit.
          *
-         * Other tagged heat sources without this property
-         * are considered permanently active.
+         * A tagged block without a LIT property is treated
+         * as an always-active heat source.
          */
         if (state.hasProperty(BlockStateProperties.LIT)) {
             return state.getValue(BlockStateProperties.LIT);
         }
 
         return true;
+    }
+
+    /**
+     * Can be called on either side.
+     *
+     * The client uses this to distinguish Heating from Cooling.
+     */
+    public boolean isReceivingHeat() {
+        return level != null
+                && isActiveHeatSource(
+                level.getBlockState(
+                        worldPosition.below()
+                )
+        );
     }
 
     public int getWaterAmount() {
@@ -149,7 +155,7 @@ public final class CookingPotBlockEntity extends BlockEntity {
         );
 
         if (this.waterAmount == 0) {
-            this.heatProgress = 0;
+            heatProgress = 0;
         }
 
         sync();
@@ -176,6 +182,22 @@ public final class CookingPotBlockEntity extends BlockEntity {
 
     public boolean isHot() {
         return heatProgress >= MAX_HEAT_TICKS;
+    }
+
+    public int getLiquidColor() {
+        return 0x3F76E4;
+    }
+
+    public int getLiquidAlpha() {
+        return 190;
+    }
+
+    public float getLiquidRenderHeight() {
+        if (!hasWater()) {
+            return 0.0F;
+        }
+
+        return 6.25F;
     }
 
     @Override

@@ -5,7 +5,6 @@ import net.ceziak.trailbound.block.entity.CookingPotBlockEntity;
 import net.ceziak.trailbound.block.entity.ModBlockEntities;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
-import net.minecraft.network.chat.Component;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -177,7 +176,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
             BlockHitResult hitResult
     ) {
         /*
-         * Sneak-right-click adds or removes the lid.
+         * Sneak-right-click still toggles the lid.
          */
         if (player.isShiftKeyDown()) {
             if (!level.isClientSide()) {
@@ -194,118 +193,10 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         /*
-         * Normal empty-hand right-click reports the contents.
+         * Pot information is displayed automatically by the HUD,
+         * so normal empty-hand right-click has no extra action.
          */
-        if (!level.isClientSide()
-                && level.getBlockEntity(pos)
-                instanceof CookingPotBlockEntity pot) {
-            displayStatus(player, pot);
-        }
-
-        return InteractionResult.sidedSuccess(
-                level.isClientSide()
-        );
-    }
-
-    private static void displayStatus(
-            Player player,
-            CookingPotBlockEntity pot
-    ) {
-        Component message;
-
-        if (!pot.hasWater()) {
-            message = Component.literal("The pot is empty.")
-                    .withStyle(ChatFormatting.GRAY);
-
-        } else if (pot.isHot()) {
-            message = createHeatBar(100)
-                    .append(
-                            Component.literal(" Boiling!")
-                                    .withStyle(
-                                            ChatFormatting.RED,
-                                            ChatFormatting.BOLD
-                                    )
-                    );
-
-        } else if (pot.isHeating()) {
-            message = createHeatBar(
-                    pot.getHeatPercentage()
-            );
-
-        } else {
-            message = createHeatBar(0)
-                    .append(
-                            Component.literal(" Cold")
-                                    .withStyle(ChatFormatting.AQUA)
-                    );
-        }
-
-        player.displayClientMessage(message, true);
-    }
-
-    private static MutableComponent createHeatBar(int percentage) {
-        int clampedPercentage = Math.max(
-                0,
-                Math.min(100, percentage)
-        );
-
-        int filledSegments = Math.round(
-                clampedPercentage
-                        / 100.0F
-                        * HEAT_BAR_LENGTH
-        );
-
-        int emptySegments =
-                HEAT_BAR_LENGTH - filledSegments;
-
-        ChatFormatting heatColour =
-                getHeatColour(clampedPercentage);
-
-        MutableComponent bar = Component.empty();
-
-        bar.append(
-                Component.literal("[")
-                        .withStyle(ChatFormatting.DARK_GRAY)
-        );
-
-        if (filledSegments > 0) {
-            bar.append(
-                    Component.literal("■".repeat(filledSegments))
-                            .withStyle(heatColour)
-            );
-        }
-
-        if (emptySegments > 0) {
-            bar.append(
-                    Component.literal("■".repeat(emptySegments))
-                            .withStyle(ChatFormatting.DARK_GRAY)
-            );
-        }
-
-        bar.append(
-                Component.literal("]")
-                        .withStyle(ChatFormatting.DARK_GRAY)
-        );
-
-        return bar;
-    }
-
-    private static ChatFormatting getHeatColour(
-            int percentage
-    ) {
-        if (percentage < 25) {
-            return ChatFormatting.AQUA;
-        }
-
-        if (percentage < 50) {
-            return ChatFormatting.YELLOW;
-        }
-
-        if (percentage < 75) {
-            return ChatFormatting.GOLD;
-        }
-
-        return ChatFormatting.RED;
+        return InteractionResult.PASS;
     }
 
     @Override
