@@ -2,26 +2,21 @@
   "type": "trailbound:cooking_pot",
   "ingredients": [
     {
-      "item": "minecraft:nether_wart"
-    },
-    {
-      "item": "minecraft:sugar"
+      "item": "trailbound:leaves"
     }
   ],
   "water": 1,
-  "cooking_time": 100,
+  "cooking_time": 150,
   "lid_closed": false,
   "serving_container": {
     "id": "minecraft:glass_bottle",
     "count": 1
   },
   "result": {
-    "id": "minecraft:potion",
+    "id": "trailbound:tea_cup",
     "count": 1,
     "components": {
-      "minecraft:potion_contents": {
-        "potion": "minecraft:swiftness"
-      }
+      "trailbound:tea_type": "green_tea"
     }
   }
 }

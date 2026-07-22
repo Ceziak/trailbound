@@ -9,6 +9,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
+import net.ceziak.trailbound.data.TeaType;
 
 public final class ModCreativeModeTabs {
     public static final DeferredRegister<CreativeModeTab> CREATIVE_MODE_TABS =
@@ -31,6 +32,10 @@ public final class ModCreativeModeTabs {
                                 output.accept(ModItems.POT.get());
                                 output.accept(ModItems.WATER_POT.get());
                                 output.accept(ModItems.MARSHMALLOW.get());
+                                output.accept(TeaCupItem.create(TeaType.EMPTY));
+                                output.accept(TeaCupItem.create(TeaType.GREEN_TEA));
+                                output.accept(TeaCupItem.create(TeaType.BERRY_TEA));
+                                output.accept(TeaCupItem.create(TeaType.HONEYCOMB_TEA));
 
                             })
                             .build()

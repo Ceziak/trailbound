@@ -17,6 +17,7 @@ import net.ceziak.trailbound.loot.ModLootModifiers;
 import net.ceziak.trailbound.block.ModBlocks;
 import net.ceziak.trailbound.block.entity.ModBlockEntities;
 import net.ceziak.trailbound.recipe.ModRecipes;
+import net.ceziak.trailbound.component.ModDataComponents;
 
 @Mod(Trailbound.MOD_ID)
 public class Trailbound {
@@ -29,6 +30,8 @@ public class Trailbound {
         NeoForge.EVENT_BUS.register(this);
 
         ModCreativeModeTabs.register(modEventBus);
+
+        ModDataComponents.register(modEventBus);
 
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);

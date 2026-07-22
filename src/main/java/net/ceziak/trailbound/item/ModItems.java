@@ -44,6 +44,15 @@ public final class ModItems {
                     () -> new Item(new Item.Properties())
             );
 
+    public static final DeferredItem<TeaCupItem> TEA_CUP =
+            ITEMS.register(
+                    "tea_cup",
+                    () -> new TeaCupItem(
+                            new Item.Properties()
+                                    .stacksTo(16)
+                    )
+            );
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

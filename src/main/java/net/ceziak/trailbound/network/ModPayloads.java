@@ -16,10 +16,8 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
 /**
  * Registers Trailbound's custom network payloads.
  */
-@EventBusSubscriber(
-        modid = Trailbound.MOD_ID,
-        bus = EventBusSubscriber.Bus.MOD
-)
+@EventBusSubscriber(modid = Trailbound.MOD_ID)
+
 public final class ModPayloads {
 
     private static final double MAX_INTERACTION_DISTANCE_SQUARED = 64.0D;

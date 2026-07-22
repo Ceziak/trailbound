@@ -1,0 +1,7 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "trailbound:item/empty_cup",
+    "layer1": "trailbound:item/cup_overlay"
+  }
+}
