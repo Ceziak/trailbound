@@ -19,19 +19,15 @@ import net.minecraft.world.phys.HitResult;
 
 public final class CookingPotHudOverlay {
 
-    /*
-     * The panel starts at this width, but expands automatically
-     * when translated text or item names require more space.
-     */
-    private static final int MIN_PANEL_WIDTH = 142;
-    private static final int MAX_PANEL_WIDTH = 320;
-
+    private static final int PANEL_WIDTH = 142;
     private static final int PANEL_HEIGHT = 145;
-    private static final int PANEL_X_OFFSET = 36;
 
-    private static final int SCREEN_MARGIN = 4;
-    private static final int CONTENT_PADDING = 8;
-    private static final int TEXT_GAP = 12;
+    private static final float MIN_RECIPE_STATUS_SCALE = 0.65F;
+    private static final int RECIPE_ROW_GAP = 4;
+    private static final int SERVING_CONTAINER_SPACE = 18;
+
+    private static final int PANEL_X_OFFSET = 36;
+    private static final float MIN_PANEL_SCALE = 0.55F;
 
     private static final int BACKGROUND_RGB = 0x141719;
     private static final int INNER_BACKGROUND_RGB = 0x202426;
@@ -49,18 +45,20 @@ public final class CookingPotHudOverlay {
     private static final int RECIPE_WARNING_RGB = 0xE07852;
     private static final int RECIPE_INACTIVE_RGB = 0x777777;
 
+    /*
+     * Muted selector colours.
+     *
+     * These only replace the one-pixel outside edges of the
+     * normal slot. The slot centre is not recoloured.
+     */
+    private static final int SELECTOR_LIGHT_RGB = 0xB68C67;
+    private static final int SELECTOR_DARK_RGB = 0xA55F43;
+
     private static final ResourceLocation WATER_SERVING_TEXTURE =
             ResourceLocation.fromNamespaceAndPath(
                     Trailbound.MOD_ID,
                     "textures/item/cup_of_water.png"
             );
-
-    private static final float SERVING_CONTAINER_ICON_SCALE = 0.65F;
-
-    private static final int SERVING_CONTAINER_ICON_SIZE =
-            Math.round(16.0F * SERVING_CONTAINER_ICON_SCALE);
-
-    private static final int SERVING_CONTAINER_ICON_GAP = 3;
 
     private static final int WATER_ICON_SIZE = 16;
     private static final int WATER_ICON_GAP = 2;
@@ -68,28 +66,16 @@ public final class CookingPotHudOverlay {
     private static final int INGREDIENT_SLOT_SIZE = 18;
     private static final int INGREDIENT_SLOT_GAP = 2;
 
-    /*
-     * Persistent animation values.
-     */
     private static float visibility;
     private static float displayedHeat;
     private static float displayedCooking;
 
-    /*
-     * The panel grows immediately to prevent clipping, but
-     * shrinks smoothly after shorter content appears.
-     */
-    private static float displayedPanelWidth =
-            MIN_PANEL_WIDTH;
-
-    /*
-     * Cached pot information is retained during the fade-out.
-     */
     private static BlockPos lastTargetPos;
 
     private static int lastWaterAmount;
     private static int lastHeatPercentage;
     private static int lastCookingPercentage;
+    private static int lastSelectedIngredientSlot = -1;
 
     private static boolean lastReceivingHeat;
     private static boolean lastHasMatchingRecipe;
@@ -98,11 +84,8 @@ public final class CookingPotHudOverlay {
 
     private static ResourceLocation lastActiveRecipeId;
 
-    private static ItemStack lastResult =
-            ItemStack.EMPTY;
-
-    private static ItemStack lastServingContainer =
-            ItemStack.EMPTY;
+    private static ItemStack lastResult = ItemStack.EMPTY;
+    private static ItemStack lastServingContainer = ItemStack.EMPTY;
 
     private static final NonNullList<ItemStack> lastIngredients =
             NonNullList.withSize(
@@ -110,12 +93,14 @@ public final class CookingPotHudOverlay {
                     ItemStack.EMPTY
             );
 
+    private CookingPotHudOverlay() {
+    }
+
     public static void render(
             GuiGraphics graphics,
             DeltaTracker deltaTracker
     ) {
-        Minecraft minecraft =
-                Minecraft.getInstance();
+        Minecraft minecraft = Minecraft.getInstance();
 
         CookingPotBlockEntity lookedAtPot =
                 findLookedAtPot(minecraft);
@@ -137,10 +122,6 @@ public final class CookingPotHudOverlay {
             updateCachedPot(lookedAtPot);
         }
 
-        /*
-         * Cut off the nearly invisible final frames so the
-         * individual HUD elements disappear together.
-         */
         if (visibility < 0.08F) {
             if (!shouldShow) {
                 lastTargetPos = null;
@@ -155,9 +136,7 @@ public final class CookingPotHudOverlay {
                         * (3.0F - 2.0F * visibility);
 
         int alpha = Mth.clamp(
-                Math.round(
-                        easedVisibility * 255.0F
-                ),
+                Math.round(easedVisibility * 255.0F),
                 0,
                 255
         );
@@ -172,50 +151,32 @@ public final class CookingPotHudOverlay {
     private static void updateCachedPot(
             CookingPotBlockEntity pot
     ) {
-        BlockPos currentPos =
-                pot.getBlockPos();
+        BlockPos currentPos = pot.getBlockPos();
 
-        boolean changedTarget =
-                lastTargetPos == null
-                        || !lastTargetPos.equals(currentPos);
-
-        if (changedTarget) {
-            displayedHeat =
-                    pot.getHeatPercentage();
-
-            displayedCooking =
-                    pot.getCookingPercentage();
+        if (lastTargetPos == null
+                || !lastTargetPos.equals(currentPos)) {
+            displayedHeat = pot.getHeatPercentage();
+            displayedCooking = pot.getCookingPercentage();
         }
 
-        lastTargetPos =
-                currentPos.immutable();
+        lastTargetPos = currentPos.immutable();
 
-        lastWaterAmount =
-                pot.getWaterAmount();
+        lastWaterAmount = pot.getWaterAmount();
+        lastHeatPercentage = pot.getHeatPercentage();
+        lastCookingPercentage = pot.getCookingPercentage();
 
-        lastHeatPercentage =
-                pot.getHeatPercentage();
+        lastSelectedIngredientSlot =
+                pot.getSelectedIngredientSlot();
 
-        lastCookingPercentage =
-                pot.getCookingPercentage();
-
-        lastReceivingHeat =
-                pot.isReceivingHeat();
-
-        lastHasMatchingRecipe =
-                pot.hasMatchingRecipe();
-
-        lastLidStateCorrect =
-                pot.isLidStateCorrect();
+        lastReceivingHeat = pot.isReceivingHeat();
+        lastHasMatchingRecipe = pot.hasMatchingRecipe();
+        lastLidStateCorrect = pot.isLidStateCorrect();
 
         lastRequiresClosedLid =
                 pot.activeRecipeRequiresClosedLid();
 
-        lastActiveRecipeId =
-                pot.getActiveRecipeId();
-
-        lastResult =
-                pot.getResult();
+        lastActiveRecipeId = pot.getActiveRecipeId();
+        lastResult = pot.getResult();
 
         lastServingContainer =
                 pot.getRequiredServingContainer();
@@ -232,13 +193,8 @@ public final class CookingPotHudOverlay {
                 0.18F
         );
 
-        /*
-         * Copy every slot, including empty ones, so removed
-         * ingredients disappear from the HUD immediately.
-         */
         for (int slot = 0;
-             slot < CookingPotBlockEntity
-                     .INGREDIENT_SLOT_COUNT;
+             slot < CookingPotBlockEntity.INGREDIENT_SLOT_COUNT;
              slot++) {
 
             lastIngredients.set(
@@ -261,8 +217,7 @@ public final class CookingPotHudOverlay {
             return null;
         }
 
-        if (hitResult.getType()
-                != HitResult.Type.BLOCK) {
+        if (hitResult.getType() != HitResult.Type.BLOCK) {
             return null;
         }
 
@@ -280,134 +235,141 @@ public final class CookingPotHudOverlay {
             Minecraft minecraft,
             int alpha
     ) {
-        Font font = minecraft.font;
+        int screenWidth = graphics.guiWidth();
+        int screenHeight = graphics.guiHeight();
 
-        int screenWidth =
-                graphics.guiWidth();
+        int centreX = screenWidth / 2;
+        int centreY = screenHeight / 2;
 
-        int screenHeight =
-                graphics.guiHeight();
-
-        int centreX =
-                screenWidth / 2;
-
-        int centreY =
-                screenHeight / 2;
-
-        /*
-         * Limit the width to the available space on one side
-         * of the crosshair.
-         */
-        int availableSideWidth = Math.max(
-                1,
-                screenWidth / 2
-                        - PANEL_X_OFFSET
-                        - SCREEN_MARGIN
+        float panelScale = calculatePanelScale(
+                screenWidth,
+                screenHeight
         );
 
-        int maximumAvailableWidth = Math.max(
-                1,
-                Math.min(
-                        MAX_PANEL_WIDTH,
-                        availableSideWidth
-                )
-        );
+        int scaledPanelWidth =
+                Math.round(PANEL_WIDTH * panelScale);
 
-        int minimumAllowedWidth = Math.min(
-                MIN_PANEL_WIDTH,
-                maximumAvailableWidth
-        );
+        int scaledPanelHeight =
+                Math.round(PANEL_HEIGHT * panelScale);
 
-        int targetPanelWidth = Math.min(
-                calculateTargetPanelWidth(font),
-                maximumAvailableWidth
-        );
+        int scaledOffset =
+                Math.max(
+                        10,
+                        Math.round(PANEL_X_OFFSET * panelScale)
+                );
 
-        /*
-         * Expand immediately so new text is never briefly
-         * clipped. Shrinking remains animated.
-         */
-        if (targetPanelWidth
-                > displayedPanelWidth) {
+        int panelX = centreX + scaledOffset;
 
-            displayedPanelWidth =
-                    targetPanelWidth;
-        } else {
-            displayedPanelWidth = approach(
-                    displayedPanelWidth,
-                    targetPanelWidth,
-                    0.18F
-            );
-        }
-
-        displayedPanelWidth = Mth.clamp(
-                displayedPanelWidth,
-                minimumAllowedWidth,
-                maximumAvailableWidth
-        );
-
-        int panelWidth =
-                Math.round(displayedPanelWidth);
-
-        int panelX =
-                centreX + PANEL_X_OFFSET;
-
-        /*
-         * Fall back to the left side when the panel cannot fit
-         * on the right.
-         */
-        if (panelX + panelWidth
-                > screenWidth - SCREEN_MARGIN) {
-
+        if (panelX + scaledPanelWidth > screenWidth - 4) {
             panelX = centreX
-                    - panelWidth
-                    - PANEL_X_OFFSET;
+                    - scaledPanelWidth
+                    - scaledOffset;
         }
 
         int panelY = Mth.clamp(
-                centreY - PANEL_HEIGHT / 2,
-                SCREEN_MARGIN,
+                centreY - scaledPanelHeight / 2,
+                4,
                 Math.max(
-                        SCREEN_MARGIN,
-                        screenHeight
-                                - PANEL_HEIGHT
-                                - SCREEN_MARGIN
+                        4,
+                        screenHeight - scaledPanelHeight - 4
                 )
         );
 
-        boolean panelOnRight =
-                panelX > centreX;
+        boolean panelOnRight = panelX > centreX;
 
         drawConnector(
                 graphics,
                 centreX,
                 centreY,
                 panelX,
-                panelWidth,
+                scaledPanelWidth,
                 panelOnRight,
                 alpha
         );
+
+        graphics.pose().pushPose();
+
+        graphics.pose().translate(
+                panelX,
+                panelY,
+                0.0F
+        );
+
+        graphics.pose().scale(
+                panelScale,
+                panelScale,
+                1.0F
+        );
+
+        try {
+            renderScaledPanel(
+                    graphics,
+                    minecraft,
+                    alpha
+            );
+        } finally {
+            graphics.pose().popPose();
+        }
+    }
+
+    private static float calculatePanelScale(
+            int screenWidth,
+            int screenHeight
+    ) {
+        int centreX = screenWidth / 2;
+
+        /*
+         * The panel normally sits beside the crosshair, so calculate
+         * how much horizontal room either side can provide.
+         */
+        int widestSide = Math.max(
+                centreX - 22,
+                screenWidth - centreX - 22
+        );
+
+        float widthScale =
+                widestSide / (float) PANEL_WIDTH;
+
+        float heightScale =
+                (screenHeight - 8)
+                        / (float) PANEL_HEIGHT;
+
+        return Mth.clamp(
+                Math.min(
+                        1.0F,
+                        Math.min(widthScale, heightScale)
+                ),
+                MIN_PANEL_SCALE,
+                1.0F
+        );
+    }
+
+    private static void renderScaledPanel(
+            GuiGraphics graphics,
+            Minecraft minecraft,
+            int alpha
+    ) {
+        Font font = minecraft.font;
+
+        int panelX = 0;
+        int panelY = 0;
 
         drawPanelBackground(
                 graphics,
                 panelX,
                 panelY,
-                panelWidth,
                 alpha
         );
 
-        boolean hasWater =
-                lastWaterAmount > 0;
+        boolean hasWater = lastWaterAmount > 0;
 
-        int heatColour =
-                hasWater
-                        ? getHeatColour(displayedHeat)
-                        : EMPTY_BAR_RGB;
+        int heatColour = hasWater
+                ? getHeatColour(displayedHeat)
+                : EMPTY_BAR_RGB;
 
-        int accentColour =
-                !lastResult.isEmpty()
-                        ? RECIPE_READY_RGB
-                        : heatColour;
+        int accentColour = !lastResult.isEmpty()
+                ? RECIPE_READY_RGB
+                : heatColour;
 
         drawPotItemIcon(
                 graphics,
@@ -417,13 +379,11 @@ public final class CookingPotHudOverlay {
                 alpha
         );
 
-        Component title =
-                Component.translatable(
-                        "gui.trailbound.cooking_pot"
-                );
+        Component title = Component.translatable(
+                "gui.trailbound.cooking_pot"
+        );
 
-        Component status =
-                getStatusComponent();
+        Component status = getStatusComponent();
 
         graphics.drawString(
                 font,
@@ -439,22 +399,17 @@ public final class CookingPotHudOverlay {
                 status,
                 panelX + 30,
                 panelY + 18,
-                argb(
-                        alpha,
-                        getStatusColour()
-                ),
+                argb(alpha, getStatusColour()),
                 false
         );
 
         graphics.fill(
                 panelX + 1,
                 panelY + 28,
-                panelX + panelWidth - 1,
+                panelX + PANEL_WIDTH - 1,
                 panelY + 29,
                 argb(
-                        Math.round(
-                                alpha * 0.75F
-                        ),
+                        Math.round(alpha * 0.75F),
                         accentColour
                 )
         );
@@ -464,7 +419,6 @@ public final class CookingPotHudOverlay {
                 font,
                 panelX,
                 panelY,
-                panelWidth,
                 alpha
         );
 
@@ -482,7 +436,6 @@ public final class CookingPotHudOverlay {
                 font,
                 panelX,
                 panelY,
-                panelWidth,
                 alpha,
                 hasWater,
                 heatColour
@@ -493,156 +446,7 @@ public final class CookingPotHudOverlay {
                 font,
                 panelX,
                 panelY,
-                panelWidth,
                 alpha
-        );
-    }
-
-    private static int calculateTargetPanelWidth(
-            Font font
-    ) {
-        Component title =
-                Component.translatable(
-                        "gui.trailbound.cooking_pot"
-                );
-
-        Component status =
-                getStatusComponent();
-
-        Component waterLabel =
-                Component.translatable(
-                        "gui.trailbound.water"
-                );
-
-        Component ingredientsLabel =
-                Component.translatable(
-                        "gui.trailbound.ingredients"
-                );
-
-        Component heatLabel =
-                Component.translatable(
-                        "gui.trailbound.heat"
-                );
-
-        Component recipeLabel =
-                Component.translatable(
-                        "gui.trailbound.recipe"
-                );
-
-        Component recipeStatus =
-                getRecipeStatusComponent();
-
-        Component recipeName =
-                getRecipeNameComponent();
-
-        int waterIconsWidth =
-                CookingPotBlockEntity.MAX_WATER
-                        * WATER_ICON_SIZE
-                        + (
-                        CookingPotBlockEntity.MAX_WATER - 1
-                ) * WATER_ICON_GAP;
-
-        int ingredientSlotsWidth =
-                CookingPotBlockEntity
-                        .INGREDIENT_SLOT_COUNT
-                        * INGREDIENT_SLOT_SIZE
-                        + (
-                        CookingPotBlockEntity
-                                .INGREDIENT_SLOT_COUNT - 1
-                ) * INGREDIENT_SLOT_GAP;
-
-        int requiredWidth =
-                MIN_PANEL_WIDTH;
-
-        /*
-         * Header:
-         * 30 pixels before the text and normal right padding.
-         */
-        requiredWidth = Math.max(
-                requiredWidth,
-                30
-                        + Math.max(
-                        font.width(title),
-                        font.width(status)
-                )
-                        + CONTENT_PADDING
-        );
-
-        /*
-         * Water label on the left and serving icons on the
-         * right.
-         */
-        requiredWidth = Math.max(
-                requiredWidth,
-                CONTENT_PADDING * 2
-                        + font.width(waterLabel)
-                        + TEXT_GAP
-                        + waterIconsWidth
-        );
-
-        /*
-         * Ingredient label and four item slots.
-         */
-        requiredWidth = Math.max(
-                requiredWidth,
-                CONTENT_PADDING * 2
-                        + Math.max(
-                        font.width(ingredientsLabel),
-                        ingredientSlotsWidth
-                )
-        );
-
-        /*
-         * Reserve enough space for the optional exact heat
-         * percentage.
-         */
-        requiredWidth = Math.max(
-                requiredWidth,
-                CONTENT_PADDING * 2
-                        + font.width(heatLabel)
-                        + TEXT_GAP
-                        + font.width("100%")
-        );
-
-        int servingContainerIconWidth =
-                !lastResult.isEmpty()
-                        && !lastServingContainer.isEmpty()
-                        ? SERVING_CONTAINER_ICON_SIZE
-                        + SERVING_CONTAINER_ICON_GAP
-                        : 0;
-
-        /*
-         * Recipe label on the left, with the status and optional
-         * serving-container icon on the right.
-         */
-        requiredWidth = Math.max(
-                requiredWidth,
-                CONTENT_PADDING * 2
-                        + font.width(recipeLabel)
-                        + TEXT_GAP
-                        + servingContainerIconWidth
-                        + font.width(recipeStatus)
-        );
-
-        int resultIconWidth =
-                !lastResult.isEmpty()
-                        ? 20
-                        : 0;
-
-        /*
-         * Complete recipe or output item name.
-         */
-        requiredWidth = Math.max(
-                requiredWidth,
-                CONTENT_PADDING * 2
-                        + resultIconWidth
-                        + font.width(recipeName)
-        );
-
-        return Mth.clamp(
-                requiredWidth,
-                MIN_PANEL_WIDTH,
-                MAX_PANEL_WIDTH
         );
     }
 
@@ -651,13 +455,11 @@ public final class CookingPotHudOverlay {
             Font font,
             int panelX,
             int panelY,
-            int panelWidth,
             int alpha
     ) {
-        Component waterLabel =
-                Component.translatable(
-                        "gui.trailbound.water"
-                );
+        Component waterLabel = Component.translatable(
+                "gui.trailbound.water"
+        );
 
         graphics.drawString(
                 font,
@@ -670,7 +472,7 @@ public final class CookingPotHudOverlay {
 
         drawWaterServings(
                 graphics,
-                panelX + panelWidth - 8,
+                panelX + PANEL_WIDTH - 8,
                 panelY + 30,
                 lastWaterAmount,
                 alpha
@@ -684,10 +486,9 @@ public final class CookingPotHudOverlay {
             int panelY,
             int alpha
     ) {
-        Component ingredientsLabel =
-                Component.translatable(
-                        "gui.trailbound.ingredients"
-                );
+        Component ingredientsLabel = Component.translatable(
+                "gui.trailbound.ingredients"
+        );
 
         graphics.drawString(
                 font,
@@ -706,21 +507,76 @@ public final class CookingPotHudOverlay {
         );
     }
 
+    private static void drawSelectedIngredientName(
+            GuiGraphics graphics,
+            Font font,
+            int panelX,
+            int panelY,
+            int alpha,
+            Component ingredientsLabel
+    ) {
+        if (lastSelectedIngredientSlot < 0
+                || lastSelectedIngredientSlot
+                >= lastIngredients.size()) {
+            return;
+        }
+
+        ItemStack selected =
+                lastIngredients.get(
+                        lastSelectedIngredientSlot
+                );
+
+        if (selected.isEmpty()) {
+            return;
+        }
+
+        int nameStartX =
+                panelX
+                        + 12
+                        + font.width(ingredientsLabel);
+
+        int nameEndX =
+                panelX + PANEL_WIDTH - 8;
+
+        int availableWidth =
+                nameEndX - nameStartX;
+
+        if (availableWidth < 10) {
+            return;
+        }
+
+        String selectedName = trimWithEllipsis(
+                font,
+                selected.getHoverName().getString(),
+                availableWidth
+        );
+
+        graphics.drawString(
+                font,
+                selectedName,
+                nameEndX - font.width(selectedName),
+                panelY + 49,
+                argb(
+                        Math.round(alpha * 0.85F),
+                        SELECTOR_LIGHT_RGB
+                ),
+                false
+        );
+    }
+
     private static void drawHeatSection(
             GuiGraphics graphics,
             Minecraft minecraft,
             Font font,
             int panelX,
             int panelY,
-            int panelWidth,
             int alpha,
             boolean hasWater,
             int heatColour
     ) {
-        Component heatLabel =
-                Component.translatable(
-                        "gui.trailbound.heat"
-                );
+        Component heatLabel = Component.translatable(
+                "gui.trailbound.heat"
+        );
 
         graphics.drawString(
                 font,
@@ -735,17 +591,15 @@ public final class CookingPotHudOverlay {
                 && minecraft.player.isShiftKeyDown()
                 && hasWater) {
 
-            Component percentage =
-                    Component.literal(
-                            Math.round(
-                                    displayedHeat
-                            ) + "%"
-                    );
+            Component percentage = Component.literal(
+                    Math.round(displayedHeat) + "%"
+            );
 
             graphics.drawString(
                     font,
                     percentage,
-                    panelX + panelWidth
+                    panelX
+                            + PANEL_WIDTH
                             - 8
                             - font.width(percentage),
                     panelY + 79,
@@ -758,7 +612,7 @@ public final class CookingPotHudOverlay {
                 graphics,
                 panelX + 8,
                 panelY + 90,
-                panelWidth - 16,
+                PANEL_WIDTH - 16,
                 7,
                 alpha,
                 hasWater
@@ -777,76 +631,93 @@ public final class CookingPotHudOverlay {
             Font font,
             int panelX,
             int panelY,
-            int panelWidth,
             int alpha
     ) {
         graphics.fill(
                 panelX + 1,
                 panelY + 104,
-                panelX + panelWidth - 1,
+                panelX + PANEL_WIDTH - 1,
                 panelY + 105,
                 argb(
-                        Math.round(
-                                alpha * 0.55F
-                        ),
+                        Math.round(alpha * 0.55F),
                         SEPARATOR_RGB
                 )
         );
 
-        Component recipeLabel =
-                Component.translatable(
-                        "gui.trailbound.recipe"
-                );
+        Component recipeLabel = Component.translatable(
+                "gui.trailbound.recipe"
+        );
 
-        Component recipeStatus =
-                getRecipeStatusComponent();
+        Component recipeStatus = getRecipeStatusComponent();
+
+        int labelX = panelX + 8;
+        int rowRightX = panelX + PANEL_WIDTH - 8;
+        int rowY = panelY + 109;
 
         graphics.drawString(
                 font,
                 recipeLabel,
-                panelX + 8,
-                panelY + 109,
+                labelX,
+                rowY,
                 argb(alpha, LABEL_RGB),
                 false
         );
 
-        int statusX =
-                panelX + panelWidth
-                        - 8
-                        - font.width(recipeStatus);
+        boolean showServingContainer =
+                !lastResult.isEmpty()
+                        && !lastServingContainer.isEmpty();
 
-        graphics.drawString(
-                font,
-                recipeStatus,
-                statusX,
-                panelY + 109,
-                argb(
-                        alpha,
-                        getRecipeStatusColour()
-                ),
-                false
+        /*
+         * Reserve room for:
+         *
+         * Recipe label | gap | optional item icon | status text
+         *
+         * Only the status text scales. This means the label and icon
+         * remain crisp while the right-hand text adapts to the space.
+         */
+        int labelRightX =
+                labelX + font.width(recipeLabel);
+
+        int iconSpace = showServingContainer
+                ? SERVING_CONTAINER_SPACE
+                : 0;
+
+        int availableStatusWidth = Math.max(
+                1,
+                rowRightX
+                        - labelRightX
+                        - RECIPE_ROW_GAP
+                        - iconSpace
         );
 
-        if (!lastResult.isEmpty()
-                && !lastServingContainer.isEmpty()) {
+        int renderedStatusWidth = drawFittedRightAlignedText(
+                graphics,
+                font,
+                recipeStatus,
+                rowRightX,
+                rowY,
+                availableStatusWidth,
+                argb(alpha, getRecipeStatusColour())
+        );
 
-            drawScaledFadingItem(
+        if (showServingContainer) {
+            int containerX =
+                    rowRightX
+                            - renderedStatusWidth
+                            - SERVING_CONTAINER_SPACE;
+
+            drawFadingItem(
                     graphics,
                     lastServingContainer,
-                    statusX
-                            - SERVING_CONTAINER_ICON_SIZE
-                            - SERVING_CONTAINER_ICON_GAP,
-                    panelY + 108,
-                    alpha,
-                    SERVING_CONTAINER_ICON_SCALE
+                    containerX,
+                    panelY + 105,
+                    alpha
             );
         }
 
-        Component recipeName =
-                getRecipeNameComponent();
+        Component recipeName = getRecipeNameComponent();
 
-        int nameX =
-                panelX + 8;
+        int nameX = panelX + 8;
 
         if (!lastResult.isEmpty()) {
             drawFadingItem(
@@ -857,26 +728,17 @@ public final class CookingPotHudOverlay {
                     alpha
             );
 
-            nameX =
-                    panelX + 28;
+            nameX = panelX + 28;
         }
 
-        int availableWidth =
-                panelX + panelWidth
-                        - 8
-                        - nameX;
+        int availableNameWidth =
+                panelX + PANEL_WIDTH - 8 - nameX;
 
-        /*
-         * The auto-sized panel should normally fit the complete
-         * name. Ellipsis remains as a fallback for tiny screens
-         * or exceptionally long translations.
-         */
-        String displayedName =
-                trimWithEllipsis(
-                        font,
-                        recipeName.getString(),
-                        availableWidth
-                );
+        String displayedName = trimWithEllipsis(
+                font,
+                recipeName.getString(),
+                availableNameWidth
+        );
 
         graphics.drawString(
                 font,
@@ -905,7 +767,7 @@ public final class CookingPotHudOverlay {
                 graphics,
                 panelX + 8,
                 panelY + 134,
-                panelWidth - 16,
+                PANEL_WIDTH - 16,
                 7,
                 alpha,
                 progress,
@@ -917,7 +779,6 @@ public final class CookingPotHudOverlay {
             GuiGraphics graphics,
             int x,
             int y,
-            int panelWidth,
             int alpha
     ) {
         int borderAlpha =
@@ -935,7 +796,7 @@ public final class CookingPotHudOverlay {
         graphics.fill(
                 x + 3,
                 y + 3,
-                x + panelWidth + 3,
+                x + PANEL_WIDTH + 3,
                 y + PANEL_HEIGHT + 3,
                 argb(shadowAlpha, 0x000000)
         );
@@ -943,7 +804,7 @@ public final class CookingPotHudOverlay {
         graphics.fill(
                 x,
                 y,
-                x + panelWidth,
+                x + PANEL_WIDTH,
                 y + PANEL_HEIGHT,
                 argb(borderAlpha, BORDER_RGB)
         );
@@ -951,7 +812,7 @@ public final class CookingPotHudOverlay {
         graphics.fill(
                 x + 1,
                 y + 1,
-                x + panelWidth - 1,
+                x + PANEL_WIDTH - 1,
                 y + PANEL_HEIGHT - 1,
                 argb(
                         backgroundAlpha,
@@ -962,7 +823,7 @@ public final class CookingPotHudOverlay {
         graphics.fill(
                 x + 2,
                 y + 2,
-                x + panelWidth - 2,
+                x + PANEL_WIDTH - 2,
                 y + 28,
                 argb(
                         headerAlpha,
@@ -976,7 +837,7 @@ public final class CookingPotHudOverlay {
             int centreX,
             int centreY,
             int panelX,
-            int panelWidth,
+            int scaledPanelWidth,
             boolean panelOnRight,
             int alpha
     ) {
@@ -1001,23 +862,25 @@ public final class CookingPotHudOverlay {
                     centreY + 2,
                     connectorColour
             );
-        } else {
-            graphics.fill(
-                    panelX + panelWidth,
-                    centreY,
-                    centreX - 6,
-                    centreY + 1,
-                    connectorColour
-            );
 
-            graphics.fill(
-                    centreX - 7,
-                    centreY - 1,
-                    centreX - 5,
-                    centreY + 2,
-                    connectorColour
-            );
+            return;
         }
+
+        graphics.fill(
+                panelX + scaledPanelWidth,
+                centreY,
+                centreX - 6,
+                centreY + 1,
+                connectorColour
+        );
+
+        graphics.fill(
+                centreX - 7,
+                centreY - 1,
+                centreX - 5,
+                centreY + 2,
+                connectorColour
+        );
     }
 
     private static void drawWaterServings(
@@ -1038,17 +901,14 @@ public final class CookingPotHudOverlay {
                         * WATER_ICON_SIZE
                         + (
                         CookingPotBlockEntity.MAX_WATER - 1
-                ) * WATER_ICON_GAP;
+                )
+                        * WATER_ICON_GAP;
 
-        int startX =
-                rightX - totalWidth;
+        int startX = rightX - totalWidth;
 
         for (int serving = 0;
              serving < CookingPotBlockEntity.MAX_WATER;
              serving++) {
-
-            boolean filled =
-                    serving < clampedWater;
 
             drawWaterServingIcon(
                     graphics,
@@ -1060,9 +920,113 @@ public final class CookingPotHudOverlay {
                     ),
                     y,
                     alpha,
-                    filled
+                    serving < clampedWater
             );
         }
+    }
+
+    private static int drawFittedRightAlignedText(
+            GuiGraphics graphics,
+            Font font,
+            Component component,
+            int rightX,
+            int y,
+            int maxWidth,
+            int colour
+    ) {
+        if (maxWidth <= 0) {
+            return 0;
+        }
+
+        String text = component.getString();
+
+        if (text.isEmpty()) {
+            return 0;
+        }
+
+        int rawWidth = Math.max(
+                1,
+                font.width(text)
+        );
+
+        /*
+         * First attempt to fit the complete text by scaling it.
+         */
+        float scale = Math.min(
+                1.0F,
+                maxWidth / (float) rawWidth
+        );
+
+        /*
+         * Do not let the text become microscopic.
+         * When the minimum scale still cannot fit the entire string,
+         * trim it and add an ellipsis.
+         */
+        if (scale < MIN_RECIPE_STATUS_SCALE) {
+            scale = MIN_RECIPE_STATUS_SCALE;
+
+            int unscaledWidthLimit = Math.max(
+                    1,
+                    (int) Math.floor(maxWidth / scale)
+            );
+
+            text = trimWithEllipsis(
+                    font,
+                    text,
+                    unscaledWidthLimit
+            );
+
+            rawWidth = Math.max(
+                    1,
+                    font.width(text)
+            );
+        }
+
+        float renderedWidth =
+                rawWidth * scale;
+
+        float drawX =
+                rightX - renderedWidth;
+
+        /*
+         * Centre the scaled text vertically along the original
+         * nine-pixel text row.
+         */
+        float drawY =
+                y
+                        + (
+                        font.lineHeight
+                                - font.lineHeight * scale
+                ) / 2.0F;
+
+        graphics.pose().pushPose();
+
+        graphics.pose().translate(
+                drawX,
+                drawY,
+                0.0F
+        );
+
+        graphics.pose().scale(
+                scale,
+                scale,
+                1.0F
+        );
+
+        try {
+            graphics.drawString(
+                    font,
+                    text,
+                    0,
+                    0,
+                    colour,
+                    false
+            );
+        } finally {
+            graphics.pose().popPose();
+        }
+
+        return (int) Math.ceil(renderedWidth);
     }
 
     private static void drawWaterServingIcon(
@@ -1080,8 +1044,7 @@ public final class CookingPotHudOverlay {
                 filled ? 1.0F : 0.16F;
 
         float finalAlpha = Mth.clamp(
-                alpha / 255.0F
-                        * servingOpacity,
+                alpha / 255.0F * servingOpacity,
                 0.0F,
                 1.0F
         );
@@ -1128,61 +1091,40 @@ public final class CookingPotHudOverlay {
             int y,
             int alpha
     ) {
-        int borderAlpha =
-                Math.round(alpha * 0.70F);
-
-        int backgroundAlpha =
-                Math.round(alpha * 0.48F);
-
         for (int slot = 0;
-             slot < CookingPotBlockEntity
-                     .INGREDIENT_SLOT_COUNT;
+             slot < CookingPotBlockEntity.INGREDIENT_SLOT_COUNT;
              slot++) {
 
-            int x = startX
-                    + slot
-                    * (
-                    INGREDIENT_SLOT_SIZE
-                            + INGREDIENT_SLOT_GAP
-            );
-
-            graphics.fill(
-                    x,
-                    y,
-                    x + INGREDIENT_SLOT_SIZE,
-                    y + INGREDIENT_SLOT_SIZE,
-                    argb(
-                            borderAlpha,
-                            BORDER_RGB
-                    )
-            );
-
-            graphics.fill(
-                    x + 1,
-                    y + 1,
-                    x + INGREDIENT_SLOT_SIZE - 1,
-                    y + INGREDIENT_SLOT_SIZE - 1,
-                    argb(
-                            backgroundAlpha,
-                            EMPTY_BAR_RGB
-                    )
-            );
-
-            graphics.fill(
-                    x + 1,
-                    y + 1,
-                    x + INGREDIENT_SLOT_SIZE - 1,
-                    y + 2,
-                    argb(
-                            Math.round(
-                                    alpha * 0.22F
-                            ),
-                            0xFFFFFF
-                    )
-            );
+            int x =
+                    startX
+                            + slot
+                            * (
+                            INGREDIENT_SLOT_SIZE
+                                    + INGREDIENT_SLOT_GAP
+                    );
 
             ItemStack ingredient =
                     lastIngredients.get(slot);
+
+            boolean selected =
+                    slot == lastSelectedIngredientSlot
+                            && !ingredient.isEmpty();
+
+            drawNormalIngredientSlot(
+                    graphics,
+                    x,
+                    y,
+                    alpha
+            );
+
+            if (selected) {
+                drawSelectedIngredientBorder(
+                        graphics,
+                        x,
+                        y,
+                        alpha
+                );
+            }
 
             if (!ingredient.isEmpty()) {
                 drawFadingItem(
@@ -1196,6 +1138,110 @@ public final class CookingPotHudOverlay {
         }
     }
 
+    private static void drawNormalIngredientSlot(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int alpha
+    ) {
+        int borderAlpha =
+                Math.round(alpha * 0.70F);
+
+        int backgroundAlpha =
+                Math.round(alpha * 0.48F);
+
+        graphics.fill(
+                x,
+                y,
+                x + INGREDIENT_SLOT_SIZE,
+                y + INGREDIENT_SLOT_SIZE,
+                argb(borderAlpha, BORDER_RGB)
+        );
+
+        graphics.fill(
+                x + 1,
+                y + 1,
+                x + INGREDIENT_SLOT_SIZE - 1,
+                y + INGREDIENT_SLOT_SIZE - 1,
+                argb(
+                        backgroundAlpha,
+                        EMPTY_BAR_RGB
+                )
+        );
+
+        graphics.fill(
+                x + 1,
+                y + 1,
+                x + INGREDIENT_SLOT_SIZE - 1,
+                y + 2,
+                argb(
+                        Math.round(alpha * 0.22F),
+                        0xFFFFFF
+                )
+        );
+    }
+
+    private static void drawSelectedIngredientBorder(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int alpha
+    ) {
+        /*
+         * Only the outermost one-pixel edges change colour.
+         * The interior and item position remain untouched.
+         */
+        int lightAlpha =
+                Math.round(alpha * 0.72F);
+
+        int darkAlpha =
+                Math.round(alpha * 0.68F);
+
+        graphics.fill(
+                x,
+                y,
+                x + INGREDIENT_SLOT_SIZE - 1,
+                y + 1,
+                argb(
+                        lightAlpha,
+                        SELECTOR_LIGHT_RGB
+                )
+        );
+
+        graphics.fill(
+                x,
+                y + 1,
+                x + 1,
+                y + INGREDIENT_SLOT_SIZE - 1,
+                argb(
+                        lightAlpha,
+                        SELECTOR_LIGHT_RGB
+                )
+        );
+
+        graphics.fill(
+                x + INGREDIENT_SLOT_SIZE - 1,
+                y,
+                x + INGREDIENT_SLOT_SIZE,
+                y + INGREDIENT_SLOT_SIZE,
+                argb(
+                        darkAlpha,
+                        SELECTOR_DARK_RGB
+                )
+        );
+
+        graphics.fill(
+                x,
+                y + INGREDIENT_SLOT_SIZE - 1,
+                x + INGREDIENT_SLOT_SIZE,
+                y + INGREDIENT_SLOT_SIZE,
+                argb(
+                        darkAlpha,
+                        SELECTOR_DARK_RGB
+                )
+        );
+    }
+
     private static void drawPotItemIcon(
             GuiGraphics graphics,
             int x,
@@ -1203,12 +1249,11 @@ public final class CookingPotHudOverlay {
             boolean hasWater,
             int alpha
     ) {
-        ItemStack iconStack =
-                new ItemStack(
-                        hasWater
-                                ? ModItems.WATER_POT.get()
-                                : ModItems.POT.get()
-                );
+        ItemStack iconStack = new ItemStack(
+                hasWater
+                        ? ModItems.WATER_POT.get()
+                        : ModItems.POT.get()
+        );
 
         drawFadingItem(
                 graphics,
@@ -1292,8 +1337,7 @@ public final class CookingPotHudOverlay {
                 argb(alpha, EMPTY_BAR_RGB)
         );
 
-        int innerWidth =
-                width - 2;
+        int innerWidth = width - 2;
 
         int filledWidth = Mth.clamp(
                 Math.round(
@@ -1326,9 +1370,7 @@ public final class CookingPotHudOverlay {
                 x + 1 + filledWidth,
                 y + 2,
                 argb(
-                        Math.round(
-                                alpha * 0.70F
-                        ),
+                        Math.round(alpha * 0.70F),
                         brighten(colour, 28)
                 )
         );
@@ -1485,10 +1527,9 @@ public final class CookingPotHudOverlay {
                             .getPath()
                             .replace('/', '.');
 
-            String fallback =
-                    humanizeRecipePath(
-                            lastActiveRecipeId.getPath()
-                    );
+            String fallback = humanizeRecipePath(
+                    lastActiveRecipeId.getPath()
+            );
 
             return Component.translatableWithFallback(
                     translationKey,
@@ -1517,50 +1558,10 @@ public final class CookingPotHudOverlay {
         return false;
     }
 
-    private static void drawScaledFadingItem(
-            GuiGraphics graphics,
-            ItemStack stack,
-            int x,
-            int y,
-            int alpha,
-            float scale
-    ) {
-        if (stack.isEmpty()
-                || alpha < 24
-                || scale <= 0.0F) {
-            return;
-        }
-
-        graphics.pose().pushPose();
-
-        graphics.pose().translate(
-                x,
-                y,
-                0.0F
-        );
-
-        graphics.pose().scale(
-                scale,
-                scale,
-                1.0F
-        );
-
-        drawFadingItem(
-                graphics,
-                stack,
-                0,
-                0,
-                alpha
-        );
-
-        graphics.pose().popPose();
-    }
-
     private static String humanizeRecipePath(
             String path
     ) {
-        int finalSlash =
-                path.lastIndexOf('/');
+        int finalSlash = path.lastIndexOf('/');
 
         String finalPart =
                 finalSlash >= 0
@@ -1605,14 +1606,10 @@ public final class CookingPotHudOverlay {
             String text,
             int width
     ) {
-        int safeWidth =
-                Math.max(0, width);
-
-        String trimmed =
-                font.plainSubstrByWidth(
-                        text,
-                        safeWidth
-                );
+        String trimmed = font.plainSubstrByWidth(
+                text,
+                Math.max(0, width)
+        );
 
         if (trimmed.equals(text)) {
             return trimmed;
@@ -1625,7 +1622,7 @@ public final class CookingPotHudOverlay {
                 text,
                 Math.max(
                         0,
-                        safeWidth - ellipsisWidth
+                        width - ellipsisWidth
                 )
         ) + "...";
     }
@@ -1756,8 +1753,5 @@ public final class CookingPotHudOverlay {
                 255
         ) << 24
                 | rgb & 0xFFFFFF;
-    }
-
-    private CookingPotHudOverlay() {
     }
 }

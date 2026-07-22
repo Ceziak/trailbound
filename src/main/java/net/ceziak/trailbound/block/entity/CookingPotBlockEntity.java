@@ -436,11 +436,16 @@ public final class CookingPotBlockEntity extends BlockEntity {
             return true;
         }
 
-        boolean lidCurrentlyClosed =
-                getBlockState().getValue(CookingPotBlock.LID);
+        /*
+         * A false recipe value means the lid is optional, not that the
+         * pot must remain open. Only recipes set to true enforce a
+         * closed lid.
+         */
+        if (!activeRecipeRequiresClosedLid) {
+            return true;
+        }
 
-        return lidCurrentlyClosed
-                == activeRecipeRequiresClosedLid;
+        return getBlockState().getValue(CookingPotBlock.LID);
     }
 
     public ItemStack getIngredient(int slot) {

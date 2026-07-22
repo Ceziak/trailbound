@@ -4,10 +4,7 @@ import net.ceziak.trailbound.Trailbound;
 import net.ceziak.trailbound.block.CookingPotBlock;
 import net.ceziak.trailbound.block.entity.CookingPotBlockEntity;
 import net.ceziak.trailbound.network.payload.SelectCookingPotIngredientPayload;
-import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
-import net.minecraft.network.chat.Component;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.neoforged.api.distmarker.Dist;
@@ -81,7 +78,7 @@ public final class CookingPotIngredientSelectionClient {
         }
 
         /*
-         * Update immediately on the client so the feedback feels instant.
+         * Update immediately on the client so the GUI feedback feels instant.
          * The packet then validates and stores the same choice server-side.
          */
         pot.setSelectedIngredientSlot(nextSlot);
@@ -91,11 +88,6 @@ public final class CookingPotIngredientSelectionClient {
                         hitResult.getBlockPos(),
                         nextSlot
                 )
-        );
-
-        showSelectionMessage(
-                minecraft,
-                pot.getIngredient(nextSlot)
         );
 
         /*
@@ -126,25 +118,5 @@ public final class CookingPotIngredientSelectionClient {
         }
 
         return -1;
-    }
-
-    private static void showSelectionMessage(
-            Minecraft minecraft,
-            ItemStack selectedIngredient
-    ) {
-        Component message = Component
-                .literal("Selected ingredient: ")
-                .withStyle(ChatFormatting.GRAY)
-                .append(
-                        selectedIngredient
-                                .getHoverName()
-                                .copy()
-                                .withStyle(ChatFormatting.GOLD)
-                );
-
-        minecraft.player.displayClientMessage(
-                message,
-                true
-        );
     }
 }
