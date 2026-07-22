@@ -38,6 +38,12 @@ public final class ModItems {
                     )
             );
 
+    public static final DeferredItem<Item> MARSHMALLOW =
+            ITEMS.register(
+                    "marshmallow",
+                    () -> new Item(new Item.Properties())
+            );
+
     public static void register(IEventBus eventBus) {
         ITEMS.register(eventBus);
     }

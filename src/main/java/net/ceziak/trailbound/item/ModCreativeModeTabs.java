@@ -30,6 +30,7 @@ public final class ModCreativeModeTabs {
                                 output.accept(ModItems.LEAVES.get());
                                 output.accept(ModItems.POT.get());
                                 output.accept(ModItems.WATER_POT.get());
+                                output.accept(ModItems.MARSHMALLOW.get());
 
                             })
                             .build()
