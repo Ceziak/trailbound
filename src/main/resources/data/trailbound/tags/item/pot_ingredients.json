@@ -4,6 +4,10 @@
     "minecraft:sweet_berries",
     "trailbound:leaves",
     "minecraft:glow_berries",
-    "minecraft:honeycomb"
+    "minecraft:honeycomb",
+    "minecraft:cooked_rabbit",
+    "minecraft:baked_potato",
+    "minecraft:brown_mushroom",
+    "minecraft:carrot"
   ]
 }

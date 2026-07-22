@@ -16,6 +16,7 @@ import org.slf4j.Logger;
 import net.ceziak.trailbound.loot.ModLootModifiers;
 import net.ceziak.trailbound.block.ModBlocks;
 import net.ceziak.trailbound.block.entity.ModBlockEntities;
+import net.ceziak.trailbound.recipe.ModRecipes;
 
 @Mod(Trailbound.MOD_ID)
 public class Trailbound {
@@ -32,6 +33,8 @@ public class Trailbound {
         ModBlocks.register(modEventBus);
         ModItems.register(modEventBus);
         ModBlockEntities.register(modEventBus);
+
+        ModRecipes.register(modEventBus);
 
         ModLootModifiers.register(modEventBus);
 

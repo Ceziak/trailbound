@@ -457,7 +457,8 @@ public final class CookingPotBlock extends BaseEntityBlock {
             Player player,
             CookingPotBlockEntity pot
     ) {
-        if (!pot.hasIngredientSpace()) {
+        if (pot.hasResult()
+                || !pot.hasIngredientSpace()) {
             return ItemInteractionResult.FAIL;
         }
 
@@ -501,11 +502,6 @@ public final class CookingPotBlock extends BaseEntityBlock {
             Player player,
             BlockHitResult hitResult
     ) {
-        /*
-         * useWithoutItem can be reached after an unsupported
-         * held-item interaction. Only run these actions when the
-         * main hand is genuinely empty.
-         */
         if (!player.getMainHandItem().isEmpty()) {
             return InteractionResult.PASS;
         }
@@ -527,9 +523,6 @@ public final class CookingPotBlock extends BaseEntityBlock {
             );
         }
 
-        /*
-         * Ingredients cannot be removed through a closed lid.
-         */
         if (state.getValue(LID)) {
             return InteractionResult.PASS;
         }
@@ -537,6 +530,25 @@ public final class CookingPotBlock extends BaseEntityBlock {
         if (!(level.getBlockEntity(pos)
                 instanceof CookingPotBlockEntity pot)) {
             return InteractionResult.PASS;
+        }
+
+        /*
+         * Finished food has priority over removing ingredients.
+         */
+        if (pot.hasResult()) {
+            if (!level.isClientSide()) {
+                ItemStack result =
+                        pot.takeResult();
+
+                player.getInventory()
+                        .placeItemBackInInventory(
+                                result
+                        );
+            }
+
+            return InteractionResult.sidedSuccess(
+                    level.isClientSide()
+            );
         }
 
         if (!pot.hasIngredients()) {
@@ -549,7 +561,9 @@ public final class CookingPotBlock extends BaseEntityBlock {
 
             if (!removed.isEmpty()) {
                 player.getInventory()
-                        .placeItemBackInInventory(removed);
+                        .placeItemBackInInventory(
+                                removed
+                        );
             }
         }
 
@@ -570,10 +584,22 @@ public final class CookingPotBlock extends BaseEntityBlock {
          * Property changes such as LID and HEATED must not
          * release the ingredients.
          */
+
         if (!state.is(newState.getBlock())
                 && !level.isClientSide()
                 && level.getBlockEntity(pos)
                 instanceof CookingPotBlockEntity pot) {
+
+            ItemStack cookedResult =
+                    pot.getResult();
+
+            if (!cookedResult.isEmpty()) {
+                Block.popResource(
+                        level,
+                        pos,
+                        cookedResult
+                );
+            }
 
             for (int slot = 0;
                  slot < CookingPotBlockEntity

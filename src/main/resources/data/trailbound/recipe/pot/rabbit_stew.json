@@ -1,0 +1,24 @@
+{
+  "type": "trailbound:cooking_pot",
+  "ingredients": [
+    {
+      "item": "minecraft:cooked_rabbit"
+    },
+    {
+      "item": "minecraft:carrot"
+    },
+    {
+      "item": "minecraft:baked_potato"
+    },
+    {
+      "item": "minecraft:brown_mushroom"
+    }
+  ],
+  "water": 4,
+  "cooking_time": 200,
+  "lid_closed": true,
+  "result": {
+    "id": "minecraft:rabbit_stew",
+    "count": 1
+  }
+}
