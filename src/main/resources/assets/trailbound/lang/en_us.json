@@ -31,11 +31,5 @@
   "gui.trailbound.recipe.ready": "Ready",
   "gui.trailbound.recipe.use_container": "Use %1$s",
 
-  "jei.trailbound.cooking_pot": "Cooking",
-
-  "item.trailbound.tea_cup": "Tea Cup",
-  "item.trailbound.tea_cup.empty": "Empty Cup",
-  "item.trailbound.tea_cup.green_tea": "Green Tea",
-  "item.trailbound.tea_cup.berry_tea": "Berry Tea",
-  "item.trailbound.tea_cup.honeycomb_tea": "Honeycomb Tea"
+  "jei.trailbound.cooking_pot": "Cooking"
 }
