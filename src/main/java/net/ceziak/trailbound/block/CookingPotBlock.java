@@ -179,10 +179,15 @@ public final class CookingPotBlock extends BaseEntityBlock {
             InteractionHand hand,
             BlockHitResult hitResult
     ) {
+        if (!(level.getBlockEntity(pos)
+                instanceof CookingPotBlockEntity pot)) {
+            return ItemInteractionResult
+                    .PASS_TO_DEFAULT_BLOCK_INTERACTION;
+        }
 
         /*
-         * Sneak-right-click always controls the lid, including while
-         * holding the bowl needed to collect a finished meal.
+         * Sneak-use always controls the lid, even while the player
+         * is holding a bowl, bottle, bucket or ingredient.
          */
         if (player.isShiftKeyDown()) {
             toggleLid(
@@ -194,12 +199,6 @@ public final class CookingPotBlock extends BaseEntityBlock {
             return ItemInteractionResult.sidedSuccess(
                     level.isClientSide()
             );
-        }
-
-        if (!(level.getBlockEntity(pos)
-                instanceof CookingPotBlockEntity pot)) {
-            return ItemInteractionResult
-                    .PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
 
         /*
@@ -532,22 +531,6 @@ public final class CookingPotBlock extends BaseEntityBlock {
                 && contents.is(Potions.WATER);
     }
 
-    private static void toggleLid(
-            BlockState state,
-            Level level,
-            BlockPos pos
-    ) {
-        if (level.isClientSide()) {
-            return;
-        }
-
-        level.setBlock(
-                pos,
-                state.cycle(LID),
-                Block.UPDATE_ALL
-        );
-    }
-
     @Override
     protected InteractionResult useWithoutItem(
             BlockState state,
@@ -556,9 +539,10 @@ public final class CookingPotBlock extends BaseEntityBlock {
             Player player,
             BlockHitResult hitResult
     ) {
-        /*
-         * Handle the lid before any other checks.
-         */
+        if (!player.getMainHandItem().isEmpty()) {
+            return InteractionResult.PASS;
+        }
+
         if (player.isShiftKeyDown()) {
             toggleLid(
                     state,
@@ -569,10 +553,6 @@ public final class CookingPotBlock extends BaseEntityBlock {
             return InteractionResult.sidedSuccess(
                     level.isClientSide()
             );
-        }
-
-        if (!player.getMainHandItem().isEmpty()) {
-            return InteractionResult.PASS;
         }
 
         if (state.getValue(LID)) {
@@ -613,7 +593,7 @@ public final class CookingPotBlock extends BaseEntityBlock {
         }
 
         if (!level.isClientSide()) {
-            ItemStack removed = pot.removeLastIngredient();
+            ItemStack removed = pot.removeSelectedIngredient();
 
             if (!removed.isEmpty()) {
                 player.getInventory()
@@ -654,44 +634,43 @@ public final class CookingPotBlock extends BaseEntityBlock {
                 }
             }
 
-            ItemStack cookedResult =
-                    pot.getResult();
+            if (pot.hasResult()) {
+                boolean droppedSourceIngredients = false;
 
-            if (!cookedResult.isEmpty()) {
-                /*
-                 * A meal requiring a serving container cannot be obtained
-                 * simply by breaking the pot. Return the ingredients used
-                 * to make it instead.
-                 */
-                if (pot.requiresServingContainer()) {
-                    for (int slot = 0;
-                         slot < CookingPotBlockEntity
-                                 .INGREDIENT_SLOT_COUNT;
-                         slot++) {
+                for (int slot = 0;
+                     slot < CookingPotBlockEntity.INGREDIENT_SLOT_COUNT;
+                     slot++) {
 
-                        ItemStack originalIngredient =
-                                pot.getFinishedRecipeIngredient(
-                                        slot
-                                );
+                    ItemStack sourceIngredient =
+                            pot.getResultSourceIngredient(slot);
 
-                        if (!originalIngredient.isEmpty()) {
-                            Block.popResource(
-                                    level,
-                                    pos,
-                                    originalIngredient.copy()
-                            );
-                        }
+                    if (sourceIngredient.isEmpty()) {
+                        continue;
                     }
-                } else {
-                    /*
-                     * Recipes with no required serving container may still
-                     * drop their finished output normally.
-                     */
+
+                    droppedSourceIngredients = true;
+
                     Block.popResource(
                             level,
                             pos,
-                            cookedResult
+                            sourceIngredient.copy()
                     );
+                }
+
+                /*
+                 * Compatibility fallback for a cooked pot saved
+                 * before source ingredients were stored.
+                 */
+                if (!droppedSourceIngredients) {
+                    ItemStack cookedResult = pot.getResult();
+
+                    if (!cookedResult.isEmpty()) {
+                        Block.popResource(
+                                level,
+                                pos,
+                                cookedResult
+                        );
+                    }
                 }
             }
         }
@@ -702,6 +681,22 @@ public final class CookingPotBlock extends BaseEntityBlock {
                 pos,
                 newState,
                 movedByPiston
+        );
+    }
+
+    private static void toggleLid(
+            BlockState state,
+            Level level,
+            BlockPos pos
+    ) {
+        if (level.isClientSide()) {
+            return;
+        }
+
+        level.setBlock(
+                pos,
+                state.cycle(LID),
+                Block.UPDATE_ALL
         );
     }
 

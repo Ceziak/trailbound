@@ -44,7 +44,7 @@ public final class CookingPotBlockEntity extends BlockEntity {
                     ItemStack.EMPTY
             );
 
-    private final NonNullList<ItemStack> finishedRecipeIngredients =
+    private final NonNullList<ItemStack> resultSourceIngredients =
             NonNullList.withSize(
                     INGREDIENT_SLOT_COUNT,
                     ItemStack.EMPTY
@@ -60,6 +60,8 @@ public final class CookingPotBlockEntity extends BlockEntity {
     private int activeCookingTime;
     private ResourceLocation activeRecipeId;
     private boolean activeRecipeRequiresClosedLid;
+
+    private int selectedIngredientSlot = -1;
 
     public CookingPotBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.COOKING_POT.get(), pos, state);
@@ -236,19 +238,12 @@ public final class CookingPotBlockEntity extends BlockEntity {
         );
 
         result = craftedResult.copy();
-        resultServingContainer =
-                recipe.getServingContainer();
+        resultServingContainer = recipe.getServingContainer();
 
-        /*
-         * Container-based meals, such as stew, must not drop
-         * directly when the pot is broken. Remember the exact
-         * ingredients that were inserted so they can be returned.
-         */
-        if (!resultServingContainer.isEmpty()) {
-            rememberFinishedRecipeIngredients();
-        } else {
-            clearFinishedRecipeIngredients();
-        }
+        copyIngredients(
+                ingredients,
+                resultSourceIngredients
+        );
 
         clearIngredients();
 
@@ -292,52 +287,38 @@ public final class CookingPotBlockEntity extends BlockEntity {
     }
 
     private void clearIngredients() {
-        for (int slot = 0; slot < ingredients.size(); slot++) {
-            ingredients.set(slot, ItemStack.EMPTY);
+        clearItemList(ingredients);
+        selectedIngredientSlot = -1;
+    }
+
+    private void clearResultSourceIngredients() {
+        clearItemList(resultSourceIngredients);
+    }
+
+    private static void clearItemList(
+            NonNullList<ItemStack> stacks
+    ) {
+        for (int slot = 0; slot < stacks.size(); slot++) {
+            stacks.set(slot, ItemStack.EMPTY);
         }
     }
 
-    private void rememberFinishedRecipeIngredients() {
-        clearFinishedRecipeIngredients();
+    private static void copyIngredients(
+            NonNullList<ItemStack> source,
+            NonNullList<ItemStack> target
+    ) {
+        clearItemList(target);
 
-        for (int slot = 0;
-             slot < ingredients.size();
-             slot++) {
+        for (int slot = 0; slot < source.size(); slot++) {
+            ItemStack stack = source.get(slot);
 
-            ItemStack ingredient =
-                    ingredients.get(slot);
-
-            if (!ingredient.isEmpty()) {
-                finishedRecipeIngredients.set(
-                        slot,
-                        ingredient.copy()
-                );
-            }
-        }
-    }
-
-    private void clearFinishedRecipeIngredients() {
-        for (int slot = 0;
-             slot < finishedRecipeIngredients.size();
-             slot++) {
-
-            finishedRecipeIngredients.set(
+            target.set(
                     slot,
-                    ItemStack.EMPTY
+                    stack.isEmpty()
+                            ? ItemStack.EMPTY
+                            : stack.copy()
             );
         }
-    }
-
-    public ItemStack getFinishedRecipeIngredient(
-            int slot
-    ) {
-        if (slot < 0
-                || slot >= finishedRecipeIngredients.size()) {
-            return ItemStack.EMPTY;
-        }
-
-        return finishedRecipeIngredients
-                .get(slot);
     }
 
     private static boolean isActiveHeatSource(BlockState state) {
@@ -355,8 +336,8 @@ public final class CookingPotBlockEntity extends BlockEntity {
     public boolean isReceivingHeat() {
         return level != null
                 && isActiveHeatSource(
-                        level.getBlockState(worldPosition.below())
-                );
+                level.getBlockState(worldPosition.below())
+        );
     }
 
     public int getWaterAmount() {
@@ -502,6 +483,10 @@ public final class CookingPotBlockEntity extends BlockEntity {
                         stack.copyWithCount(1)
                 );
 
+                if (selectedIngredientSlot < 0) {
+                    selectedIngredientSlot = slot;
+                }
+
                 clearActiveRecipeState();
                 sync();
                 return true;
@@ -511,22 +496,114 @@ public final class CookingPotBlockEntity extends BlockEntity {
         return false;
     }
 
-    public ItemStack removeLastIngredient() {
-        for (int slot = ingredients.size() - 1; slot >= 0; slot--) {
-            ItemStack ingredient = ingredients.get(slot);
+    public int getSelectedIngredientSlot() {
+        normalizeSelectedIngredientSlot();
+        return selectedIngredientSlot;
+    }
 
+    public boolean setSelectedIngredientSlot(int slot) {
+        if (!isIngredientSlotOccupied(slot)) {
+            return false;
+        }
+
+        if (selectedIngredientSlot == slot) {
+            return true;
+        }
+
+        selectedIngredientSlot = slot;
+
+        if (level == null || !level.isClientSide()) {
+            sync();
+        }
+
+        return true;
+    }
+
+    public boolean isIngredientSlotOccupied(int slot) {
+        return slot >= 0
+                && slot < ingredients.size()
+                && !ingredients.get(slot).isEmpty();
+    }
+
+    public int getOccupiedIngredientCount() {
+        int occupied = 0;
+
+        for (ItemStack ingredient : ingredients) {
             if (!ingredient.isEmpty()) {
-                ItemStack removed = ingredient.copy();
-
-                ingredients.set(slot, ItemStack.EMPTY);
-
-                clearActiveRecipeState();
-                sync();
-                return removed;
+                occupied++;
             }
         }
 
+        return occupied;
+    }
+
+    public ItemStack removeSelectedIngredient() {
+        normalizeSelectedIngredientSlot();
+
+        if (!isIngredientSlotOccupied(selectedIngredientSlot)) {
+            return ItemStack.EMPTY;
+        }
+
+        int removedSlot = selectedIngredientSlot;
+        ItemStack removed = ingredients.get(removedSlot).copy();
+
+        ingredients.set(removedSlot, ItemStack.EMPTY);
+
+        selectedIngredientSlot = findNextOccupiedSlot(
+                removedSlot,
+                1
+        );
+
+        clearActiveRecipeState();
+        sync();
+        return removed;
+    }
+
+    public ItemStack removeLastIngredient() {
+        for (int slot = ingredients.size() - 1; slot >= 0; slot--) {
+            if (!isIngredientSlotOccupied(slot)) {
+                continue;
+            }
+
+            selectedIngredientSlot = slot;
+            return removeSelectedIngredient();
+        }
+
         return ItemStack.EMPTY;
+    }
+
+    private void normalizeSelectedIngredientSlot() {
+        if (isIngredientSlotOccupied(selectedIngredientSlot)) {
+            return;
+        }
+
+        selectedIngredientSlot = findNextOccupiedSlot(
+                -1,
+                1
+        );
+    }
+
+    private int findNextOccupiedSlot(
+            int startingSlot,
+            int direction
+    ) {
+        int step = direction < 0 ? -1 : 1;
+
+        for (int offset = 1;
+             offset <= ingredients.size();
+             offset++) {
+
+            int slot = Math.floorMod(
+                    startingSlot + step * offset,
+                    ingredients.size()
+            );
+
+            if (isIngredientSlotOccupied(slot)) {
+                return slot;
+            }
+        }
+
+        return -1;
     }
 
     public boolean hasResult() {
@@ -549,9 +626,9 @@ public final class CookingPotBlockEntity extends BlockEntity {
         return hasResult()
                 && requiresServingContainer()
                 && ItemStack.isSameItemSameComponents(
-                        heldStack,
-                        resultServingContainer
-                );
+                heldStack,
+                resultServingContainer
+        );
     }
 
     public ItemStack takeResult() {
@@ -563,16 +640,28 @@ public final class CookingPotBlockEntity extends BlockEntity {
 
         result = ItemStack.EMPTY;
         resultServingContainer = ItemStack.EMPTY;
-
-        /*
-         * The meal was collected correctly using its bowl or
-         * another required container, so the ingredient backup
-         * is no longer needed.
-         */
-        clearFinishedRecipeIngredients();
+        clearResultSourceIngredients();
 
         sync();
         return taken;
+    }
+
+    public ItemStack getResultSourceIngredient(int slot) {
+        if (slot < 0 || slot >= resultSourceIngredients.size()) {
+            return ItemStack.EMPTY;
+        }
+
+        return resultSourceIngredients.get(slot);
+    }
+
+    public boolean hasResultSourceIngredients() {
+        for (ItemStack ingredient : resultSourceIngredients) {
+            if (!ingredient.isEmpty()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public int getLiquidColor() {
@@ -626,7 +715,6 @@ public final class CookingPotBlockEntity extends BlockEntity {
                 tag.getBoolean("ActiveRecipeRequiresClosedLid");
 
         clearIngredients();
-        clearFinishedRecipeIngredients();
 
         ContainerHelper.loadAllItems(
                 tag,
@@ -634,13 +722,23 @@ public final class CookingPotBlockEntity extends BlockEntity {
                 registries
         );
 
-        ContainerHelper.loadAllItems(
-                tag.getCompound(
-                        "FinishedRecipeIngredients"
-                ),
-                finishedRecipeIngredients,
-                registries
-        );
+        selectedIngredientSlot = tag.contains(
+                "SelectedIngredientSlot"
+        )
+                ? tag.getInt("SelectedIngredientSlot")
+                : -1;
+
+        normalizeSelectedIngredientSlot();
+
+        clearResultSourceIngredients();
+
+        if (tag.contains("ResultSourceIngredients")) {
+            ContainerHelper.loadAllItems(
+                    tag.getCompound("ResultSourceIngredients"),
+                    resultSourceIngredients,
+                    registries
+            );
+        }
 
         result = ItemStack.parseOptional(
                 registries,
@@ -654,6 +752,7 @@ public final class CookingPotBlockEntity extends BlockEntity {
 
         if (result.isEmpty()) {
             resultServingContainer = ItemStack.EMPTY;
+            clearResultSourceIngredients();
         }
 
         activeRecipeId = null;
@@ -701,18 +800,22 @@ public final class CookingPotBlockEntity extends BlockEntity {
                 registries
         );
 
-        CompoundTag finishedIngredientsTag =
-                new CompoundTag();
+        tag.putInt(
+                "SelectedIngredientSlot",
+                selectedIngredientSlot
+        );
+
+        CompoundTag resultSourceTag = new CompoundTag();
 
         ContainerHelper.saveAllItems(
-                finishedIngredientsTag,
-                finishedRecipeIngredients,
+                resultSourceTag,
+                resultSourceIngredients,
                 registries
         );
 
         tag.put(
-                "FinishedRecipeIngredients",
-                finishedIngredientsTag
+                "ResultSourceIngredients",
+                resultSourceTag
         );
 
         tag.put(
